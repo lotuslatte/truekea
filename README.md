@@ -67,4 +67,4 @@ Con Docker instalado también puedes correr todo local: `npx supabase start` y `
 
 Cada fase se prueba con **dos cuentas** (dos navegadores o dos dispositivos): publicar → ver en el feed del otro → ofertar (+ S/ encima) → contraofertar → aceptar → chat en vivo → elegir punto seguro → confirmar entrega ambos → calificar → bloquear/reportar.
 
-Prototipo en desarrollo, abierto a colaboración y financiamiento: [Favio Samillan](https://lotuslatte.github.io).
+Prototipo en desarrollo, abierto a colaboración: [Favio Samillan](https://lotuslatte.github.io).
