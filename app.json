@@ -1,0 +1,69 @@
+{
+  "expo": {
+    "name": "Truekea",
+    "slug": "truekea",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "truekea",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.truekea",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Truekea usa tu ubicación para mostrarte objetos cerca de ti."
+      }
+    },
+    "android": {
+      "package": "app.truekea",
+      "adaptiveIcon": {
+        "backgroundColor": "#12A150",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FBFAF7",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Truekea usa tu ubicación para mostrarte objetos cerca de ti."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Truekea necesita acceso a tus fotos para que publiques tus objetos."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#12A150"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
