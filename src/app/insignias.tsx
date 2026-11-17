@@ -223,6 +223,6 @@ const styles = StyleSheet.create({
   progressLabel: {
     fontFamily: fonts.bodySemi,
     fontSize: fontSizes.xs,
-    color: colors.gold,
+    color: colors.goldInk,
   },
 });

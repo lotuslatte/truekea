@@ -32,6 +32,7 @@ import {
   useSendMessage,
   type MessageWithSender,
 } from '@/features/chat/api';
+import { notify } from '@/lib/confirm';
 import { colors, fonts, fontSizes, radius, spacing } from '@/theme/tokens';
 
 function formatTime(iso: string): string {
@@ -72,8 +73,14 @@ export default function ChatScreen() {
   const handleSend = () => {
     const body = text.trim();
     if (!body) return;
-    sendMessage.mutate(body);
     setText('');
+    sendMessage.mutate(body, {
+      // A failed message goes back to the input so nothing typed is lost.
+      onError: () => {
+        setText((current) => (current.trim() ? current : body));
+        notify('No se pudo enviar el mensaje', 'Revisa tu conexión. Tu texto sigue en el cuadro.');
+      },
+    });
   };
 
   const handlePickImage = async () => {

@@ -14,7 +14,6 @@ import {
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { TextField } from '@/components/ui/TextField';
 import {
@@ -22,6 +21,7 @@ import {
   useMyAvailableItems,
   type ItemWithPhotos,
 } from '@/features/offers/api';
+import { QuickPublish } from '@/features/offers/QuickPublish';
 import { notify } from '@/lib/confirm';
 import { publicPhotoUrl, supabase } from '@/lib/supabase';
 import { colors, fonts, fontSizes, radius, shadows, spacing } from '@/theme/tokens';
@@ -145,13 +145,7 @@ export default function OfferModal() {
                 <Skeleton style={styles.pickerSkeleton} />
               </View>
             ) : availableItems.length === 0 ? (
-              <EmptyState
-                emoji="📦"
-                title="Primero publica algo para poder ofrecer"
-                subtitle="Cuando tengas un objeto o saber disponible podrás proponer el trueke."
-                actionTitle="Publicar algo"
-                onAction={() => router.push('/item/nuevo')}
-              />
+              <QuickPublish targetTitle={item.title} onCreated={setSelectedItemId} />
             ) : (
               <ScrollView
                 horizontal

@@ -209,7 +209,7 @@ export default function PublicProfileScreen() {
         </View>
       )}
 
-      {!isMe && id ? <ModerationActions otherId={id} otherName={profile.display_name} /> : null}
+      {!isMe && id && uid ? <ModerationActions otherId={id} otherName={profile.display_name} /> : null}
     </ScrollView>
   );
 }
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
   circlesHistory: {
     fontFamily: fonts.bodySemi,
     fontSize: fontSizes.sm,
-    color: colors.gold,
+    color: colors.goldInk,
   },
   circleRow: {
     flexDirection: 'row',
@@ -559,7 +559,7 @@ const styles = StyleSheet.create({
   circleDate: {
     fontFamily: fonts.bodySemi,
     fontSize: fontSizes.xs,
-    color: colors.festive,
+    color: colors.festiveInk,
   },
   circleSeats: {
     fontFamily: fonts.bodyMedium,

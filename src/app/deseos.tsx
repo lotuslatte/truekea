@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
   },
   radiusChipLabelSelected: {
     fontFamily: fonts.bodySemi,
-    color: colors.festive,
+    color: colors.festiveInk,
   },
   wishListTitle: {
     fontFamily: fonts.heading,

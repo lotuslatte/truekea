@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontFamily: fonts.bodySemi,
     fontSize: fontSizes.xs,
-    color: colors.gold,
+    color: colors.goldInk,
   },
   statsRow: {
     flexDirection: 'row',

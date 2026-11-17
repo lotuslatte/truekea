@@ -249,7 +249,7 @@ export default function ItemDetailScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Ver perfil de ${item.owner.display_name}`}
-            onPress={() => requireAuth(() => router.push(`/usuario/${item.owner.id}`))}
+            onPress={() => router.push(`/usuario/${item.owner.id}`)}
             style={styles.ownerCard}
           >
             <Avatar url={item.owner.avatar_url} name={item.owner.display_name} size={48} />
@@ -899,7 +899,7 @@ const styles = StyleSheet.create({
   pickupTitle: {
     fontFamily: fonts.bodySemi,
     fontSize: fontSizes.sm,
-    color: colors.accent,
+    color: colors.accentInk,
   },
   pickupTitleUrgent: {
     color: colors.danger,

@@ -1,5 +1,7 @@
 import { Alert, Platform } from 'react-native';
 
+import { toast, type ToastKind } from '@/lib/toast';
+
 // Alert.alert is a no-op on react-native-web; fall back to window.confirm there.
 export function confirmAction(opts: {
   title: string;
@@ -23,10 +25,9 @@ export function confirmAction(opts: {
   ]);
 }
 
-export function notify(title: string, message?: string) {
-  if (Platform.OS === 'web') {
-    window.alert(message ? `${title}\n\n${message}` : title);
-    return;
-  }
-  Alert.alert(title, message);
+// Messages that do not need a decision are shown as a toast, never as a blocking alert.
+const ERROR_HINT = /no se pudo|no pudimos|error|ups|falló|inválid|revisa/i;
+
+export function notify(title: string, message?: string, kind?: ToastKind) {
+  toast(title, message, kind ?? (ERROR_HINT.test(title) ? 'error' : 'success'));
 }

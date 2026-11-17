@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fonts.bodySemi,
     fontSize: fontSizes.xs,
-    color: colors.gold,
+    color: colors.goldInk,
   },
   progress: {
     fontFamily: fonts.body,

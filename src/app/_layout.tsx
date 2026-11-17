@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { AuthProvider, useAuth } from '@/features/auth/AuthProvider';
+import { ToastHost } from '@/components/ui/ToastHost';
 import { useIntroState } from '@/features/intro/introState';
 import { usePushNotificationRouting, usePushRegistration } from '@/lib/notifications';
 import { queryClient } from '@/lib/queryClient';
@@ -18,7 +19,8 @@ SplashScreen.preventAutoHideAsync();
 
 // Rutas que un visitante sin cuenta no puede abrir por URL directa.
 // Mirar (feed, detalle de item) es libre; actuar pide cuenta.
-const PROTECTED_TOP = new Set(['oferta', 'chat', 'trueke', 'calificar', 'usuario', 'ajustes', 'encuentros', 'insignias', 'deseos']);
+// A visitor may open a public profile: seeing who is behind a listing builds trust before signing up.
+const PROTECTED_TOP = new Set(['oferta', 'chat', 'trueke', 'calificar', 'ajustes', 'encuentros', 'insignias', 'deseos']);
 const PROTECTED_TABS = new Set(['ofertas', 'chats', 'perfil', 'publicar']);
 
 function RootNavigator() {
@@ -163,6 +165,7 @@ export default function RootLayout() {
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
         <DesktopFrame>
           <RootNavigator />
+          <ToastHost />
         </DesktopFrame>
       </AuthProvider>
     </QueryClientProvider>

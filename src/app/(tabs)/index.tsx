@@ -545,6 +545,18 @@ function FeedList({ coords }: { coords: Coords }) {
   const numColumns = useNumColumns();
   const { data: adsFlag } = useFeatureFlag('ads_feed');
 
+  const resetFilters = useFilters((st) => st.reset);
+  const filtersActive = useFilters(
+    (st) =>
+      st.search.trim() !== '' ||
+      st.categoryId != null ||
+      st.kind != null ||
+      st.donationsOnly ||
+      st.format != null ||
+      st.modality != null ||
+      st.condition != null,
+  );
+
   const adFrequency = useMemo(() => {
     const payload = adsFlag?.payload;
     if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
@@ -560,6 +572,19 @@ function FeedList({ coords }: { coords: Coords }) {
   }, [feed.data, adFrequency]);
 
   if (feed.isPending) return <FeedSkeleton />;
+
+  // A failed load must not look like an empty community.
+  if (feed.isError && !feed.data) {
+    return (
+      <EmptyState
+        emoji="📡"
+        title="No pudimos cargar los truekes"
+        subtitle="Revisa tu conexión e inténtalo de nuevo."
+        actionTitle="Reintentar"
+        onAction={() => feed.refetch()}
+      />
+    );
+  }
 
   return (
     <FlashList<FeedSlot<FeedItemRow>>
@@ -587,13 +612,23 @@ function FeedList({ coords }: { coords: Coords }) {
         />
       }
       ListEmptyComponent={
-        <EmptyState
-          emoji="🌱"
-          title="Aún no hay truekes por aquí"
-          subtitle="¡Publica algo y empieza el intercambio!"
-          actionTitle="Publicar mi primer objeto"
-          onAction={() => router.push('/item/nuevo')}
-        />
+        filtersActive ? (
+          <EmptyState
+            emoji="🔎"
+            title="Nada coincide con tu búsqueda"
+            subtitle="Prueba con otra palabra, amplía la distancia o quita los filtros."
+            actionTitle="Limpiar filtros"
+            onAction={resetFilters}
+          />
+        ) : (
+          <EmptyState
+            emoji="🌱"
+            title="Aún no hay truekes por aquí"
+            subtitle="¡Publica algo y empieza el intercambio!"
+            actionTitle="Publicar mi primer objeto"
+            onAction={() => router.push('/item/nuevo')}
+          />
+        )
       }
     />
   );
@@ -776,7 +811,7 @@ const styles = StyleSheet.create({
   circleDate: {
     fontFamily: fonts.bodySemi,
     fontSize: fontSizes.xs,
-    color: colors.festive,
+    color: colors.festiveInk,
   },
   circleSeats: {
     fontFamily: fonts.bodyMedium,

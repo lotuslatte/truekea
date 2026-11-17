@@ -143,7 +143,7 @@ export default function OfferDetailScreen() {
         // Celebración: hojas cayendo y un respiro festivo antes de navegar.
         setCelebration((count) => count + 1);
         notify('¡Trueke acordado! 🤝', 'Coordina la entrega por el chat.');
-        setTimeout(() => router.replace(`/trueke/${tradeId}`), 1200);
+        setTimeout(() => router.replace(`/trueke/${tradeId}`), 700);
       },
       onError: () =>
         notify('Ups, no pudimos aceptar la oferta', 'Inténtalo de nuevo en un momento.'),

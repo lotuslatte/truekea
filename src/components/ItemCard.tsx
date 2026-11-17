@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
   },
   heartIconSaved: {
-    color: colors.festive,
+    color: colors.festiveInk,
   },
   body: {
     padding: spacing.sm,
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   circleMeta: {
     fontFamily: fonts.bodyMedium,
     fontSize: fontSizes.xs,
-    color: colors.accent,
+    color: colors.accentInk,
   },
   ownerRow: {
     flexDirection: 'row',
