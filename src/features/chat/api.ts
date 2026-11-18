@@ -1,4 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+  type QueryClient,
+} from '@tanstack/react-query';
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 import { useEffect } from 'react';
 
@@ -40,9 +47,10 @@ function one<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null;
 }
 
-export function useMyChats() {
+export function useMyChats(enabled = true) {
   return useQuery({
     queryKey: ['chats'],
+    enabled,
     queryFn: async (): Promise<MyChatRow[]> => {
       const { data, error } = await supabase.rpc('my_chats');
       if (error) throw error;
@@ -118,25 +126,53 @@ export type MessageSender = Pick<Profile, 'display_name' | 'avatar_url'>;
 /** Mensaje con su remitente embebido: en chats grupales hay que saber quién habla. */
 export type MessageWithSender = Message & { sender: MessageSender | null };
 
+export const MESSAGES_PAGE = 40;
+
+/** Pages of messages, newest page first; each page is newest message first. */
+export type MessagesData = InfiniteData<MessageWithSender[], string | null>;
+
+/** Cursor for the next (older) page: the oldest timestamp loaded, or undefined at the start of the chat. */
+export function olderCursor(lastPage: { created_at: string }[], pageSize = MESSAGES_PAGE): string | undefined {
+  if (lastPage.length < pageSize) return undefined;
+  return lastPage[lastPage.length - 1]?.created_at;
+}
+
+/** Applies `fn` to the newest page of the cached chat (optimistic sends, Realtime). */
+function patchNewest(
+  queryClient: QueryClient,
+  chatId: string,
+  fn: (newest: MessageWithSender[]) => MessageWithSender[],
+) {
+  queryClient.setQueryData<MessagesData>(['messages', chatId], (old) =>
+    old
+      ? { ...old, pages: [fn(old.pages[0] ?? []), ...old.pages.slice(1)] }
+      : { pages: [fn([])], pageParams: [null] },
+  );
+}
+
 /**
- * Últimos 100 mensajes, ordenados descendente (el más nuevo primero),
- * pensados para una FlatList `inverted`. Este fetch es la fuente de verdad;
- * Realtime solo acelera la llegada de mensajes nuevos.
+ * Messages in descending order (newest first) for an `inverted` FlatList,
+ * loaded a page at a time: `fetchNextPage` brings the older ones. This fetch
+ * is the source of truth; Realtime only speeds up new arrivals.
  */
 export function useMessages(chatId: string) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['messages', chatId],
-    queryFn: async (): Promise<MessageWithSender[]> => {
-      const { data, error } = await supabase
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }): Promise<MessageWithSender[]> => {
+      let query = supabase
         .from('messages')
         .select('*, sender:profiles!messages_sender_id_fkey(display_name, avatar_url)')
         .eq('chat_id', chatId)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(MESSAGES_PAGE);
+      if (pageParam) query = query.lt('created_at', pageParam);
+      const { data, error } = await query;
       if (error) throw error;
       const rows = (data ?? []) as unknown as (Message & { sender: RawRel<MessageSender> })[];
       return rows.map((row) => ({ ...row, sender: one(row.sender) }));
     },
+    getNextPageParam: (lastPage) => olderCursor(lastPage),
   });
 }
 
@@ -171,21 +207,16 @@ export function useSendMessage(chatId: string) {
         read_at: null,
         sender: null,
       };
-      queryClient.setQueryData<MessageWithSender[]>(['messages', chatId], (old) => [
-        optimistic,
-        ...(old ?? []),
-      ]);
+      patchNewest(queryClient, chatId, (newest) => [optimistic, ...newest]);
       return { tempId };
     },
     onError: (_error, _body, context) => {
       if (!context) return;
-      queryClient.setQueryData<MessageWithSender[]>(['messages', chatId], (old) =>
-        (old ?? []).filter((m) => m.id !== context.tempId),
-      );
+      patchNewest(queryClient, chatId, (newest) => newest.filter((m) => m.id !== context.tempId));
     },
     onSuccess: (message, _body, context) => {
-      queryClient.setQueryData<MessageWithSender[]>(['messages', chatId], (old) => {
-        const rest = (old ?? []).filter((m) => m.id !== context.tempId);
+      patchNewest(queryClient, chatId, (newest) => {
+        const rest = newest.filter((m) => m.id !== context.tempId);
         // Si Realtime ya lo trajo, no lo dupliques.
         if (rest.some((m) => m.id === message.id)) return rest;
         return [message, ...rest];
@@ -253,8 +284,7 @@ export function useChatRealtime(chatId: string) {
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
         (payload) => {
           const message: MessageWithSender = { ...(payload.new as Message), sender: null };
-          queryClient.setQueryData<MessageWithSender[]>(['messages', chatId], (old) => {
-            const current = old ?? [];
+          patchNewest(queryClient, chatId, (current) => {
             if (current.some((m) => m.id === message.id)) return current;
             // Si es un mensaje propio, reemplaza su versión optimista pendiente.
             const rest =

@@ -2,6 +2,7 @@ import type { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { queryClient } from '@/lib/queryClient';
+import { unregisterPushToken } from '@/lib/pushToken';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types/database';
 
@@ -71,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadProfile, session?.user.id]);
 
   const signOut = useCallback(async () => {
+    await unregisterPushToken();
     await supabase.auth.signOut();
   }, []);
 

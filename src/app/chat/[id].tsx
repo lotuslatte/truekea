@@ -1,8 +1,6 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -17,6 +15,9 @@ import {
   View,
 } from 'react-native';
 
+import { hapticTap } from '@/lib/haptics';
+import { IconText } from '@/components/ui/IconText';
+import { Icon } from '@/components/ui/Icon';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -33,6 +34,7 @@ import {
   type MessageWithSender,
 } from '@/features/chat/api';
 import { notify } from '@/lib/confirm';
+import { pickPhotos, type PhotoSource } from '@/lib/photos';
 import { colors, fonts, fontSizes, radius, spacing } from '@/theme/tokens';
 
 function formatTime(iso: string): string {
@@ -67,12 +69,13 @@ export default function ChatScreen() {
   const other = trade ? (trade.owner_id === uid ? trade.offerer : trade.owner) : null;
   const circleClosed = circle != null && (circle.status === 'traded' || circle.status === 'removed');
   const readOnly = (trade != null && trade.status !== 'agreed') || circleClosed;
-  const messages = messagesQuery.data ?? [];
+  const messages = messagesQuery.data?.pages.flat() ?? [];
   const showSafetyBanner = messagesQuery.isSuccess && messages.length === 0 && !readOnly;
 
   const handleSend = () => {
     const body = text.trim();
     if (!body) return;
+    hapticTap();
     setText('');
     sendMessage.mutate(body, {
       // A failed message goes back to the input so nothing typed is lost.
@@ -83,15 +86,18 @@ export default function ChatScreen() {
     });
   };
 
-  const handlePickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
-    if (result.canceled) return;
-    const uri = result.assets[0]?.uri;
+  const handlePickImage = async (source: PhotoSource) => {
+    const [uri] = await pickPhotos(source);
     if (!uri) return;
-    sendImage.mutate({ uri });
+    hapticTap();
+    sendImage.mutate(
+      { uri },
+      { onError: () => notify('No se pudo enviar la foto', 'Revisa tu conexión e inténtalo de nuevo.') },
+    );
+  };
+
+  const loadOlder = () => {
+    if (messagesQuery.hasNextPage && !messagesQuery.isFetchingNextPage) void messagesQuery.fetchNextPage();
   };
 
   const renderItem = ({ item, index }: { item: MessageWithSender; index: number }) => {
@@ -184,7 +190,7 @@ export default function ChatScreen() {
                 {circle.title}
               </Text>
               <Text style={styles.headerMeta} numberOfLines={1}>
-                ⭕ Círculo
+                Círculo
                 {circle.event_at
                   ? ` · ${format(new Date(circle.event_at), "d MMM, HH:mm 'h'", { locale: es })}`
                   : ''}
@@ -196,7 +202,7 @@ export default function ChatScreen() {
               onPress={() => router.push(`/item/${circle.id}`)}
               style={({ pressed }) => [styles.headerLink, pressed && styles.headerLinkPressed]}
             >
-              <Text style={styles.headerLinkText}>Ver círculo →</Text>
+              <IconText icon="arrow" after style={styles.headerLinkText}>Ver círculo</IconText>
             </Pressable>
           </>
         ) : other ? (
@@ -213,7 +219,7 @@ export default function ChatScreen() {
               onPress={() => router.push(`/trueke/${trade!.id}`)}
               style={({ pressed }) => [styles.headerLink, pressed && styles.headerLinkPressed]}
             >
-              <Text style={styles.headerLinkText}>Ver trueke →</Text>
+              <IconText icon="arrow" after style={styles.headerLinkText}>Ver trueke</IconText>
             </Pressable>
           </>
         ) : (
@@ -237,6 +243,16 @@ export default function ChatScreen() {
           keyExtractor={(m) => m.id}
           renderItem={renderItem}
           inverted
+          onEndReached={loadOlder}
+          onEndReachedThreshold={0.4}
+          // Inverted list: the footer sits above the oldest message.
+          ListFooterComponent={
+            messagesQuery.isFetchingNextPage ? (
+              <ActivityIndicator style={styles.older} color={colors.primary} />
+            ) : messagesQuery.hasNextPage ? (
+              <Button title="Ver mensajes anteriores" variant="ghost" onPress={loadOlder} style={styles.older} />
+            ) : null
+          }
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
         />
@@ -244,9 +260,9 @@ export default function ChatScreen() {
 
       {showSafetyBanner ? (
         <View style={styles.safetyBanner}>
-          <Text style={styles.safetyText}>
-            🛡️ Coordina en un punto de encuentro seguro. Nunca envíes dinero por adelantado.
-          </Text>
+          <IconText icon="shield" style={styles.safetyText}>
+            Coordina en un punto de encuentro seguro. Nunca envíes dinero por adelantado.
+          </IconText>
         </View>
       ) : null}
 
@@ -260,19 +276,32 @@ export default function ChatScreen() {
         </View>
       ) : (
         <View style={styles.inputRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Enviar una foto"
-            onPress={handlePickImage}
-            disabled={sendImage.isPending}
-            style={({ pressed }) => [styles.photoButton, pressed && styles.sendButtonDim]}
-          >
-            {sendImage.isPending ? (
+          {sendImage.isPending ? (
+            <View style={styles.photoButton}>
               <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Ionicons name="image-outline" size={24} color={colors.primary} />
-            )}
-          </Pressable>
+            </View>
+          ) : (
+            <>
+              {Platform.OS !== 'web' ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Tomar una foto"
+                  onPress={() => handlePickImage('camera')}
+                  style={({ pressed }) => [styles.photoButton, pressed && styles.sendButtonDim]}
+                >
+                  <Icon name="camera" size={24} color={colors.primary} />
+                </Pressable>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Enviar una foto de tu galería"
+                onPress={() => handlePickImage('library')}
+                style={({ pressed }) => [styles.photoButton, pressed && styles.sendButtonDim]}
+              >
+                <Icon name="image" size={24} color={colors.primary} />
+              </Pressable>
+            </>
+          )}
           <View style={styles.inputWrap}>
             <TextField
               value={text}
@@ -293,7 +322,7 @@ export default function ChatScreen() {
               (!text.trim() || pressed) && styles.sendButtonDim,
             ]}
           >
-            <Ionicons name="send" size={20} color={colors.surface} />
+            <Icon name="send" size={20} color={colors.surface} />
           </Pressable>
         </View>
       )}
@@ -324,6 +353,7 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
+  older: { alignSelf: 'center', marginVertical: spacing.sm },
   screen: {
     flex: 1,
     backgroundColor: colors.sand,

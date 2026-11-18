@@ -1,78 +1,44 @@
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
-import { Badge } from '@/components/ui/Badge';
+import { Icon } from '@/components/ui/Icon';
+import { StatusBadge } from '@/components/StatusBadge';
+import { Thumb } from '@/components/Thumb';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Skeleton } from '@/components/ui/Skeleton';
 import {
   useReceivedOffers,
   useSentOffers,
-  type ItemWithPhotos,
   type OfferWithRelations,
 } from '@/features/offers/api';
 import { timeAgo } from '@/lib/format';
-import { publicPhotoUrl } from '@/lib/supabase';
 import { colors, fonts, fontSizes, radius, shadows, spacing } from '@/theme/tokens';
-import type { OfferStatus } from '@/types/database';
 
 type Segment = 'received' | 'sent';
 
-type BadgeTone = 'primary' | 'accent' | 'success' | 'warning' | 'danger' | 'donation' | 'muted';
-
-const STATUS_META: Record<OfferStatus, { label: string; tone: BadgeTone }> = {
-  pending: { label: 'Pendiente', tone: 'warning' },
-  accepted: { label: 'Aceptada', tone: 'success' },
-  rejected: { label: 'Rechazada', tone: 'danger' },
-  countered: { label: 'Contraofertada', tone: 'accent' },
-  cancelled: { label: 'Cancelada', tone: 'muted' },
-  expired: { label: 'Vencida', tone: 'muted' },
-};
-
-function firstPhotoUrl(item: ItemWithPhotos): string | null {
-  const sorted = [...item.item_photos].sort((a, b) => a.position - b.position);
-  const photo = sorted[0];
-  return photo ? publicPhotoUrl(photo.storage_path) : null;
-}
-
-function Thumb({ item }: { item: ItemWithPhotos | null }) {
-  if (!item) {
-    return (
-      <View style={[styles.thumb, styles.thumbFallback]}>
-        <Text style={styles.thumbEmoji}>🎁</Text>
-      </View>
-    );
-  }
-  const photo = firstPhotoUrl(item);
-  if (!photo) {
-    const isKnowledge = item.kind === 'knowledge';
-    return (
-      <View
-        style={[styles.thumb, styles.thumbFallback, isKnowledge && styles.knowledgeFallback]}
-      >
-        <Text style={styles.thumbEmoji}>{isKnowledge ? '🎓' : '📷'}</Text>
-      </View>
-    );
-  }
-  return <Image source={{ uri: photo }} style={styles.thumb} contentFit="cover" />;
-}
+const SEGMENTS = [
+  { key: 'received', label: 'Recibidas' },
+  { key: 'sent', label: 'Enviadas' },
+] as const;
 
 function offerLine(offer: OfferWithRelations, segment: Segment): string {
+  // The target item can be missing when it was removed after the offer.
+  const target = offer.item?.title ?? 'una publicación que ya no está';
   if (segment === 'received') {
     return offer.offered_item
-      ? `Te ofrecen su ${offer.offered_item.title} por tu ${offer.item.title}`
-      : `Te piden tu ${offer.item.title} — es un regalo`;
+      ? `Te ofrecen «${offer.offered_item.title}» por «${target}»`
+      : `Te piden «${target}», que es un regalo`;
   }
   return offer.offered_item
-    ? `Ofreciste tu ${offer.offered_item.title} por ${offer.item.title}`
-    : `Pediste ${offer.item.title} — es un regalo`;
+    ? `Ofreciste «${offer.offered_item.title}» por «${target}»`
+    : `Pediste «${target}», que es un regalo`;
 }
 
 function OfferRow({ offer, segment }: { offer: OfferWithRelations; segment: Segment }) {
   const router = useRouter();
-  const meta = STATUS_META[offer.status];
 
   return (
     <Pressable
@@ -82,7 +48,7 @@ function OfferRow({ offer, segment }: { offer: OfferWithRelations; segment: Segm
     >
       <View style={styles.thumbs}>
         <Thumb item={offer.item} />
-        <Text style={styles.swapArrow}>↔</Text>
+        <Icon name="swap" size={18} color={colors.inkMuted} label="por" />
         <Thumb item={offer.offered_item} />
       </View>
       <View style={styles.rowBody}>
@@ -90,7 +56,7 @@ function OfferRow({ offer, segment }: { offer: OfferWithRelations; segment: Segm
           {offerLine(offer, segment)}
         </Text>
         <View style={styles.badges}>
-          <Badge tone={meta.tone} label={meta.label} />
+          <StatusBadge offer={offer.status} />
         </View>
         <Text style={styles.time}>{timeAgo(offer.created_at)}</Text>
       </View>
@@ -106,27 +72,7 @@ export default function OffersScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.segments}>
-        {(
-          [
-            { key: 'received', label: 'Recibidas' },
-            { key: 'sent', label: 'Enviadas' },
-          ] as const
-        ).map(({ key, label }) => {
-          const selected = segment === key;
-          return (
-            <Pressable
-              key={key}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              onPress={() => setSegment(key)}
-              style={[styles.pill, selected && styles.pillSelected]}
-            >
-              <Text style={[styles.pillLabel, selected && styles.pillLabelSelected]}>{label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <SegmentedControl options={SEGMENTS} value={segment} onChange={setSegment} style={styles.segments} />
 
       {active.isPending ? (
         <View style={styles.skeletons}>

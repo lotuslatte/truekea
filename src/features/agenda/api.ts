@@ -99,7 +99,7 @@ export function useEncuentros() {
         encuentros.push({
           key: `trade-${row.id}`,
           role: 'trueke',
-          title: `Trueke: ${ownerItem?.title ?? '…'} ↔ ${offererItem?.title ?? '🎁 regalo'}`,
+          title: `Trueke: ${ownerItem?.title ?? '…'} por ${offererItem?.title ?? 'un regalo'}`,
           companion: other?.display_name ?? null,
           date: null, // los truekes se coordinan en el chat, sin fecha en la BD
           place: meetingPoint ? `${meetingPoint.name} · ${meetingPoint.district}` : null,

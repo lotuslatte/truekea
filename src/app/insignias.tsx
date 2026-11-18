@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontFamily: fonts.body,
-    fontSize: 10,
+    fontSize: 12,
     color: colors.inkMuted,
     textAlign: 'center',
   },

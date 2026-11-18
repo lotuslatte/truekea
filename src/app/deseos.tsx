@@ -1,8 +1,11 @@
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
+import { IconText } from '@/components/ui/IconText';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { Thumb } from '@/components/Thumb';
+import { Icon } from '@/components/ui/Icon';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -19,15 +22,14 @@ import {
   type Wishlist,
 } from '@/features/wishlist/api';
 import { confirmAction, notify } from '@/lib/confirm';
-import { publicPhotoUrl } from '@/lib/supabase';
 import { colors, fonts, fontSizes, radius, shadows, spacing } from '@/theme/tokens';
 import type { Category } from '@/types/database';
 
 type Segment = 'guardados' | 'deseos';
 
 const SEGMENTS: { key: Segment; label: string }[] = [
-  { key: 'guardados', label: '❤️ Guardados' },
-  { key: 'deseos', label: '🔔 Mis deseos' },
+  { key: 'guardados', label: 'Guardados' },
+  { key: 'deseos', label: 'Mis deseos' },
 ];
 
 const RADIUS_OPTIONS = [3, 5, 10, 20] as const;
@@ -43,7 +45,6 @@ function SavedRow({ entry, onPress }: { entry: SavedEntry; onPress: () => void }
   const { item } = entry;
   const available = item.status === 'available';
   const isKnowledge = item.kind === 'knowledge';
-  const firstPhoto = [...item.item_photos].sort((a, b) => a.position - b.position)[0];
 
   return (
     <Pressable
@@ -56,28 +57,18 @@ function SavedRow({ entry, onPress }: { entry: SavedEntry; onPress: () => void }
         !available && styles.savedRowUnavailable,
       ]}
     >
-      {firstPhoto ? (
-        <Image
-          source={{ uri: publicPhotoUrl(firstPhoto.storage_path) }}
-          style={styles.thumb}
-          contentFit="cover"
-        />
-      ) : (
-        <View style={[styles.thumb, styles.thumbEmpty, isKnowledge && styles.thumbKnowledge]}>
-          <Text style={styles.thumbEmoji}>{isKnowledge ? '🎓' : '📦'}</Text>
-        </View>
-      )}
+      <Thumb item={item} style={styles.thumb} />
       <View style={styles.savedBody}>
         <Text style={styles.savedTitle} numberOfLines={1}>
           {item.title}
         </Text>
         <View style={styles.savedBadges}>
           {isKnowledge ? (
-            <Badge label="🧠 Saber" tone="accent" />
+            <Badge icon="knowledge" label="Saber" tone="accent" />
           ) : (
-            <Badge label="📦 Objeto" tone="muted" />
+            <Badge icon="object" label="Objeto" tone="muted" />
           )}
-          {item.is_donation ? <Badge label="🎁 Regalo" tone="donation" /> : null}
+          {item.is_donation ? <Badge icon="gift" label="Regalo" tone="donation" /> : null}
           {!available ? <Badge label="Ya no disponible" tone="muted" /> : null}
         </View>
         {entry.ownerName ? (
@@ -177,7 +168,7 @@ function WishlistRow({
           hitSlop={10}
           onPress={onDelete}
         >
-          <Text style={styles.wishDelete}>🗑</Text>
+          <Icon name="trash" size={20} color={colors.danger} />
         </Pressable>
       </View>
     </View>
@@ -347,37 +338,32 @@ function DeseosTab() {
 // ---------- Pantalla ----------
 
 export default function DeseosScreen() {
+  const router = useRouter();
   const [segment, setSegment] = useState<Segment>('guardados');
 
   return (
     <View style={styles.screen}>
-      <View style={styles.segments}>
-        {SEGMENTS.map((option) => {
-          const isActive = segment === option.key;
-          return (
-            <Pressable
-              key={option.key}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isActive }}
-              onPress={() => setSegment(option.key)}
-              style={[styles.segment, isActive && styles.segmentActive]}
-            >
-              <Text
-                style={[styles.segmentLabel, isActive && styles.segmentLabelActive]}
-                numberOfLines={1}
-              >
-                {option.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <SegmentedControl options={SEGMENTS} value={segment} onChange={setSegment} style={styles.segments} />
+
+      {segment === 'deseos' ? (
+        <Pressable
+          onPress={() => router.push('/coincidencias' as never)}
+          accessibilityRole="link"
+          style={styles.matchesLink}
+        >
+          <IconText icon="arrow" after style={styles.matchesLinkText}>
+            Ver las publicaciones que calzan con tus deseos
+          </IconText>
+        </Pressable>
+      ) : null}
       {segment === 'guardados' ? <GuardadosTab /> : <DeseosTab />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  matchesLink: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, minHeight: 44, justifyContent: 'center' },
+  matchesLinkText: { fontFamily: fonts.bodySemi, fontSize: fontSizes.sm, color: colors.primary },
   screen: {
     flex: 1,
     backgroundColor: colors.sand,

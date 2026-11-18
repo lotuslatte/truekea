@@ -1,8 +1,10 @@
-import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { Thumb } from '@/components/Thumb';
+import { Icon } from '@/components/ui/Icon';
+import { IconText } from '@/components/ui/IconText';
 import { LeafConfetti } from '@/components/LeafConfetti';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -12,57 +14,38 @@ import { useAuth } from '@/features/auth/AuthProvider';
 import {
   useCancelTrade,
   useConfirmTrade,
-  useMeetingPoints,
   useMyRatingForTrade,
   useSetMeetingPoint,
   useTrade,
   type TradeItemWithPhotos,
 } from '@/features/trades/api';
 import { confirmAction, notify } from '@/lib/confirm';
-import { publicPhotoUrl } from '@/lib/supabase';
+import { track } from '@/lib/telemetry';
+import { HandoverCard } from '@/features/trades/HandoverCard';
+import { MeetingTimeCard } from '@/features/trades/MeetingTimeCard';
+import { useMeetingPointsNear, type MeetingPointItem } from '@/features/trades/meetingPoints';
+import { formatDistance } from '@/lib/format';
 import { colors, fonts, fontSizes, radius, shadows, spacing } from '@/theme/tokens';
-import type { MeetingPoint } from '@/types/database';
-
-function firstPhotoUrl(item: TradeItemWithPhotos): string | null {
-  const sorted = [...item.item_photos].sort((a, b) => a.position - b.position);
-  const photo = sorted[0];
-  return photo ? publicPhotoUrl(photo.storage_path) : null;
-}
 
 function TradeItem({ item }: { item: TradeItemWithPhotos | null }) {
   if (!item) {
     return (
       <View style={styles.itemCard}>
-        <View style={[styles.itemPhoto, styles.photoFallback]}>
-          <Text style={styles.photoEmoji}>🎁</Text>
-        </View>
+        <Thumb item={null} style={styles.itemPhoto} />
         <Text style={styles.giftText}>Regalo</Text>
       </View>
     );
   }
-  const photo = firstPhotoUrl(item);
   const isKnowledge = item.kind === 'knowledge';
   return (
     <View style={styles.itemCard}>
-      {photo ? (
-        <Image source={{ uri: photo }} style={styles.itemPhoto} contentFit="cover" />
-      ) : (
-        <View
-          style={[
-            styles.itemPhoto,
-            styles.photoFallback,
-            isKnowledge && styles.knowledgeFallback,
-          ]}
-        >
-          <Text style={styles.photoEmoji}>{isKnowledge ? '🎓' : '📷'}</Text>
-        </View>
-      )}
+      <Thumb item={item} style={styles.itemPhoto} />
       <Text style={styles.itemTitle} numberOfLines={2}>
         {item.title}
       </Text>
       {isKnowledge ? (
         <View style={styles.itemBadges}>
-          <Badge tone="accent" label="🧠 Saber" />
+          <Badge tone="accent" icon="knowledge" label="Saber" />
         </View>
       ) : null}
     </View>
@@ -84,7 +67,8 @@ function TimelineStep({
     <View style={styles.step}>
       <View style={styles.stepRail}>
         <View style={[styles.stepDot, done && styles.stepDotDone]}>
-          <Text style={[styles.stepCheck, done && styles.stepCheckDone]}>{done ? '✓' : '•'}</Text>
+          <Text style={[styles.stepCheck, done && styles.stepCheckDone]}>{done ? '' : '•'}</Text>
+          {done ? <Icon name="check" size={14} color={colors.surface} weight="bold" /> : null}
         </View>
         {!isLast ? <View style={[styles.stepLine, done && styles.stepLineDone]} /> : null}
       </View>
@@ -97,13 +81,13 @@ function TimelineStep({
 }
 
 export default function TradeScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, codigo } = useLocalSearchParams<{ id: string; codigo?: string }>();
   const router = useRouter();
   const { session } = useAuth();
   const uid = session?.user.id ?? '';
 
   const { data: trade, isPending, isError, refetch } = useTrade(id!);
-  const meetingPoints = useMeetingPoints();
+  const meetingPoints = useMeetingPointsNear();
   const confirmTrade = useConfirmTrade();
   const cancelTrade = useCancelTrade();
   const setMeetingPoint = useSetMeetingPoint();
@@ -111,16 +95,6 @@ export default function TradeScreen() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [celebration, setCelebration] = useState(0);
-
-  const groupedPoints = useMemo(() => {
-    const groups = new Map<string, MeetingPoint[]>();
-    for (const point of meetingPoints.data ?? []) {
-      const list = groups.get(point.district) ?? [];
-      list.push(point);
-      groups.set(point.district, list);
-    }
-    return [...groups.entries()];
-  }, [meetingPoints.data]);
 
   if (isError) {
     return (
@@ -156,9 +130,9 @@ export default function TradeScreen() {
     : isCancelled
       ? undefined
       : myConfirmedAt && !otherConfirmedAt
-        ? `Tú ✓ · Falta ${other.display_name}`
+        ? `Tú ya confirmaste. Falta ${other.display_name}`
         : !myConfirmedAt && otherConfirmedAt
-          ? `${other.display_name} ✓ · Faltas tú`
+          ? `${other.display_name} ya confirmó. Faltas tú`
           : 'Ambos deben confirmar la entrega';
 
   const onConfirm = () => {
@@ -172,9 +146,10 @@ export default function TradeScreen() {
             if (status === 'completed') {
               // Fuiste quien cerró el trueke: llueven hojas para celebrarlo.
               setCelebration((count) => count + 1);
-              notify('¡Trueke completado! 🎉', 'Gracias por darle una segunda vida a tus objetos.');
+              notify('¡Trueke completado!', 'Gracias por darle una segunda vida a tus objetos.');
+              track('trade_completed');
             } else {
-              notify('¡Listo! ✓', `Ahora falta que ${other.display_name} confirme.`);
+              notify('¡Listo!', `Ahora falta que ${other.display_name} confirme.`);
             }
           },
           onError: () =>
@@ -198,13 +173,13 @@ export default function TradeScreen() {
     });
   };
 
-  const onPickPoint = (point: MeetingPoint) => {
+  const onPickPoint = (point: MeetingPointItem) => {
     setMeetingPoint.mutate(
       { tradeId: trade.id, meetingPointId: point.id },
       {
         onSuccess: () => {
           setPickerOpen(false);
-          notify('Punto de encuentro elegido 📍', point.name);
+          notify('Punto de encuentro elegido', point.name);
         },
         onError: () =>
           notify('Ups, no pudimos guardar el punto', 'Inténtalo de nuevo en un momento.'),
@@ -218,7 +193,7 @@ export default function TradeScreen() {
       {/* Header: los dos objetos */}
       <View style={styles.swapRow}>
         <TradeItem item={trade.owner_item} />
-        <Text style={styles.swapArrow}>↔</Text>
+        <Icon name="swap" size={18} color={colors.inkMuted} label="por" />
         <TradeItem item={trade.offerer_item} />
       </View>
 
@@ -237,7 +212,7 @@ export default function TradeScreen() {
       >
         <Avatar url={other.avatar_url} name={other.display_name} size={40} />
         <Text style={styles.otherName}>Trueke con {other.display_name}</Text>
-        <Text style={styles.chevron}>›</Text>
+        <Icon name="chevron" size={18} color={colors.inkFaint} />
       </Pressable>
 
       {/* Timeline */}
@@ -249,9 +224,9 @@ export default function TradeScreen() {
 
       {/* Caja de seguridad */}
       <View style={styles.safetyBox}>
-        <Text style={styles.safetyText}>
-          🛡️ Reúnete en un lugar público y concurrido. Revisa el objeto antes de cerrar el trato.
-        </Text>
+        <IconText icon="shield" style={styles.safetyText}>
+          Reúnete en un lugar público y concurrido. Revisa el objeto antes de cerrar el trato.
+        </IconText>
       </View>
 
       {/* Punto de encuentro */}
@@ -260,7 +235,7 @@ export default function TradeScreen() {
           <Text style={styles.sectionTitle}>Punto de encuentro</Text>
           {trade.meeting_point ? (
             <View style={styles.meetingCard}>
-              <Text style={styles.meetingName}>📍 {trade.meeting_point.name}</Text>
+              <IconText icon="location" style={styles.meetingName}>{trade.meeting_point.name}</IconText>
               <Text style={styles.meetingAddress}>{trade.meeting_point.address}</Text>
               <Badge tone="muted" label={trade.meeting_point.district} />
             </View>
@@ -277,12 +252,37 @@ export default function TradeScreen() {
         </View>
       ) : null}
 
+      {/* Meeting date and time */}
+      {!isCancelled && (isAgreed || trade.meeting_at) ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Fecha y hora</Text>
+          <MeetingTimeCard trade={trade} uid={uid} otherName={other.display_name} editable={isAgreed} />
+        </View>
+      ) : null}
+
+      {/* In-person handover with a code */}
+      {isAgreed ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Entrega en persona</Text>
+          <HandoverCard
+            tradeId={trade.id}
+            otherName={other.display_name}
+            initialCode={codigo}
+            onCompleted={() => {
+              setCelebration((count) => count + 1);
+              notify('¡Trueke completado!', 'La entrega quedó confirmada por los dos.');
+              track('trade_completed', { via: 'code' });
+            }}
+          />
+        </View>
+      ) : null}
+
       {/* Acciones */}
       {isAgreed ? (
         <View style={styles.actions}>
           {trade.chat ? (
             <Button
-              title="Abrir chat 💬"
+              title="Abrir chat"
               variant="secondary"
               onPress={() => router.push(`/chat/${trade.chat!.id}`)}
             />
@@ -291,7 +291,8 @@ export default function TradeScreen() {
             <Button title={`Esperando a ${other.display_name}…`} disabled />
           ) : (
             <Button
-              title="Confirmar entrega"
+              title="Confirmar sin código"
+              variant="secondary"
               onPress={onConfirm}
               loading={confirmTrade.isPending}
             />
@@ -315,7 +316,7 @@ export default function TradeScreen() {
             <Text style={styles.ratedText}>Ya calificaste este trueke ⭐</Text>
           ) : (
             <Button
-              title={`Calificar a ${other.display_name} ⭐`}
+              title={`Calificar a ${other.display_name}`}
               onPress={() => router.push(`/calificar/${trade.id}`)}
             />
           )}
@@ -333,7 +334,12 @@ export default function TradeScreen() {
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Elige un punto seguro</Text>
             <Text style={styles.modalSubtitle}>
-              Lugares públicos y concurridos, pensados para truekear tranquilo.
+              Lugares públicos y concurridos.{' '}
+              {meetingPoints.data?.origin === 'device'
+                ? 'Los más cercanos a ti van primero.'
+                : meetingPoints.data?.origin === 'district'
+                  ? 'Los más cercanos a tu distrito van primero.'
+                  : ''}
             </Text>
             <ScrollView contentContainerStyle={styles.modalList}>
               {meetingPoints.isPending ? (
@@ -353,25 +359,24 @@ export default function TradeScreen() {
                   />
                 </>
               ) : (
-                groupedPoints.map(([district, points]) => (
-                  <View key={district} style={styles.districtGroup}>
-                    <Text style={styles.districtTitle}>{district}</Text>
-                    {points.map((point) => (
-                      <Pressable
-                        key={point.id}
-                        accessibilityRole="button"
-                        onPress={() => onPickPoint(point)}
-                        disabled={setMeetingPoint.isPending}
-                        style={({ pressed }) => [
-                          styles.pointRow,
-                          pressed && { backgroundColor: colors.primaryFaint },
-                        ]}
-                      >
-                        <Text style={styles.pointName}>📍 {point.name}</Text>
-                        <Text style={styles.pointAddress}>{point.address}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
+                (meetingPoints.data?.points ?? []).map((point) => (
+                  <Pressable
+                    key={point.id}
+                    accessibilityRole="button"
+                    onPress={() => onPickPoint(point)}
+                    disabled={setMeetingPoint.isPending}
+                    style={({ pressed }) => [
+                      styles.pointRow,
+                      pressed && { backgroundColor: colors.primaryFaint },
+                    ]}
+                  >
+                    <Text style={styles.pointName}>{point.name}</Text>
+                    <Text style={styles.pointAddress}>{point.address}</Text>
+                    <Text style={styles.pointAddress}>
+                      {point.district}
+                      {point.distanceKm != null ? `, ${formatDistance(point.distanceKm)}` : ''}
+                    </Text>
+                  </Pressable>
                 ))
               )}
             </ScrollView>

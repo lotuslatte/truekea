@@ -25,7 +25,11 @@ export type NotificationType =
   | 'wishlist_match'
   | 'circle_request'
   | 'circle_accepted'
-  | 'circle_completed';
+  | 'circle_completed'
+  | 'item_question'
+  | 'item_answer'
+  | 'meeting_proposed'
+  | 'meeting_accepted';
 
 type ProfileRow = {
   id: string;
@@ -98,6 +102,9 @@ type TradeRow = {
   cash_top_up_pen: number;
   status: TradeStatus;
   meeting_point_id: number | null;
+  meeting_at: string | null;
+  meeting_proposed_by: string | null;
+  meeting_accepted_at: string | null;
   owner_confirmed_at: string | null;
   offerer_confirmed_at: string | null;
   completed_at: string | null;
@@ -113,6 +120,16 @@ type MessageRow = {
   image_path: string | null;
   created_at: string;
   read_at: string | null;
+};
+
+type ItemQuestionRow = {
+  id: string;
+  item_id: string;
+  asker_id: string;
+  body: string;
+  answer: string | null;
+  created_at: string;
+  answered_at: string | null;
 };
 
 type RatingRow = {
@@ -149,6 +166,22 @@ export type FeedItemRow = {
   owner_avatar_url: string | null;
   owner_rating_avg: number | null;
   owner_rating_count: number;
+};
+
+export type MatchRow = {
+  direction: 'i_want' | 'they_want';
+  item_id: string;
+  item_title: string;
+  item_kind: ItemKind;
+  is_donation: boolean;
+  district: string;
+  photo_path: string | null;
+  other_id: string;
+  other_display_name: string;
+  other_avatar_url: string | null;
+  wish_query: string | null;
+  distance_km: number | null;
+  matched_at: string;
 };
 
 export type MyChatRow = {
@@ -520,6 +553,12 @@ export type Database = {
         Update: { updated_at?: string };
         Relationships: [];
       };
+      item_questions: {
+        Row: ItemQuestionRow;
+        Insert: Pick<ItemQuestionRow, 'item_id' | 'asker_id' | 'body'>;
+        Update: { answer?: string | null };
+        Relationships: [];
+      };
       notifications: {
         Row: {
           id: string;
@@ -556,6 +595,8 @@ export type Database = {
       };
       confirm_trade: { Args: { p_trade_id: string }; Returns: TradeStatus };
       cancel_trade: { Args: { p_trade_id: string }; Returns: undefined };
+      propose_meeting_time: { Args: { p_trade_id: string; p_at: string }; Returns: undefined };
+      accept_meeting_time: { Args: { p_trade_id: string }; Returns: undefined };
       set_meeting_point: { Args: { p_trade_id: string; p_meeting_point_id: number }; Returns: undefined };
       feed_items: {
         Args: {
@@ -624,6 +665,10 @@ export type Database = {
         Returns: { items_saved: number; circles_held: number; co2_kg: number }[];
       };
       my_chats: { Args: Record<string, never>; Returns: MyChatRow[] };
+      issue_handover_code: { Args: { p_trade_id: string }; Returns: { code: string; expires_at: string }[] };
+      redeem_handover_code: { Args: { p_trade_id: string; p_code: string }; Returns: TradeStatus | null };
+      my_matches: { Args: { p_limit?: number }; Returns: MatchRow[] };
+      claim_push: { Args: { p_notification_id: string }; Returns: boolean };
       delete_account: { Args: Record<string, never>; Returns: undefined };
       expire_stale_offers: { Args: Record<string, never>; Returns: number };
     };
@@ -657,3 +702,4 @@ export type Category = Tables<'categories'>;
 export type MeetingPoint = Tables<'meeting_points'>;
 export type AppNotification = Tables<'notifications'>;
 export type CircleMember = Tables<'circle_members'>;
+export type ItemQuestion = Tables<'item_questions'>;

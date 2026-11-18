@@ -33,7 +33,7 @@ export function Avatar({ url, name, size = 40 }: Props) {
       accessibilityLabel={`Avatar de ${name}`}
       style={[styles.fallback, { width: size, height: size, borderRadius: size / 2 }]}
     >
-      <Text accessible={false} style={[styles.initials, { fontSize: size * 0.4 }]}>
+      <Text accessible={false} style={[styles.initials, { fontSize: Math.max(12, size * 0.4) }]}>
         {initials || '?'}
       </Text>
     </View>

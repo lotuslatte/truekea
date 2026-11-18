@@ -1,33 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
 import { Linking, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 
+import { IconText } from '@/components/ui/IconText';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { supabase } from '@/lib/supabase';
+import { useMeetingPointsNear, type MeetingPointItem } from '@/features/trades/meetingPoints';
+import { formatDistance } from '@/lib/format';
 import { colors, fonts, fontSizes, radius, shadows, spacing } from '@/theme/tokens';
-
-type MeetingPointItem = {
-  id: number;
-  name: string;
-  description: string | null;
-  address: string;
-  district: string;
-  lat: number;
-  lng: number;
-};
-
-function useMeetingPoints() {
-  return useQuery({
-    queryKey: ['meetingPointsList'],
-    queryFn: async (): Promise<MeetingPointItem[]> => {
-      const { data, error } = await supabase.rpc('meeting_points_list');
-      if (error) throw error;
-      return data ?? [];
-    },
-    staleTime: Infinity,
-  });
-}
 
 /** El RPC ya viene ordenado por distrito: agrupamos preservando ese orden. */
 function groupByDistrict(points: MeetingPointItem[]) {
@@ -53,7 +32,12 @@ function MeetingPointCard({ point }: { point: MeetingPointItem }) {
   return (
     <View style={styles.card}>
       <Text style={styles.pointName}>{point.name}</Text>
-      <Text style={styles.pointDetail}>📍 {point.address}</Text>
+      {point.distanceKm != null ? (
+        <Text style={styles.pointDetail}>
+          {point.district}, {formatDistance(point.distanceKm)}
+        </Text>
+      ) : null}
+      <IconText icon="location" style={styles.pointDetail}>{point.address}</IconText>
       {point.description ? <Text style={styles.pointDetail}>{point.description}</Text> : null}
       <Pressable
         accessibilityRole="link"
@@ -62,14 +46,14 @@ function MeetingPointCard({ point }: { point: MeetingPointItem }) {
         hitSlop={8}
         style={({ pressed }) => pressed && styles.linkPressed}
       >
-        <Text style={styles.mapsLink}>Cómo llegar →</Text>
+        <IconText icon="arrow" after style={styles.mapsLink}>Cómo llegar</IconText>
       </Pressable>
     </View>
   );
 }
 
 export default function SafeMeetingPointsScreen() {
-  const { data: points, isPending, isError, refetch } = useMeetingPoints();
+  const { data, isPending, isError, refetch } = useMeetingPointsNear();
 
   if (isPending) {
     return (
@@ -92,7 +76,11 @@ export default function SafeMeetingPointsScreen() {
     );
   }
 
-  const sections = groupByDistrict(points ?? []);
+  // With an origin the list is one block, nearest first; without it, by district.
+  const sections =
+    !data || data.origin === 'none'
+      ? groupByDistrict(data?.points ?? [])
+      : [{ title: data.origin === 'device' ? 'Más cerca de ti' : 'Más cerca de tu distrito', data: data.points }];
 
   return (
     <SectionList

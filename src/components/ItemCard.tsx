@@ -4,6 +4,8 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { IconText } from '@/components/ui/IconText';
+import { Icon } from '@/components/ui/Icon';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { RatingStars } from '@/components/ui/RatingStars';
@@ -109,9 +111,9 @@ export function ItemCard({ item }: { item: FeedItemRow }) {
             <Badge label={pickup.label} tone={pickup.urgent ? 'danger' : 'accent'} />
           ) : null}
           {isKnowledge ? (
-            <Badge label={isCircle ? '⭕ Círculo' : '🧠 Saber'} tone="accent" />
+            <Badge icon={isCircle ? 'people' : 'knowledge'} label={isCircle ? 'Círculo' : 'Saber'} tone="accent" />
           ) : null}
-          {item.is_donation ? <Badge label="🎁 Regalo" tone="donation" /> : null}
+          {item.is_donation ? <Badge icon="gift" label="Regalo" tone="donation" /> : null}
         </View>
       </View>
 
@@ -122,19 +124,19 @@ export function ItemCard({ item }: { item: FeedItemRow }) {
         {isCircle ? (
           <View style={styles.circleRow}>
             {item.event_at ? (
-              <Text style={styles.circleMeta}>📅 {formatEventShort(item.event_at)}</Text>
+              <IconText icon="calendar" style={styles.circleMeta}>{formatEventShort(item.event_at)}</IconText>
             ) : null}
             {item.capacity != null ? (
-              <Text style={styles.circleMeta}>
-                🪑 {item.accepted_count}/{item.capacity} cupos
-              </Text>
+              <IconText icon="seats" style={styles.circleMeta}>
+                {item.accepted_count}/{item.capacity} cupos
+              </IconText>
             ) : null}
           </View>
         ) : null}
         <Text style={styles.location} numberOfLines={1}>
           {isVirtual
-            ? '💻 Virtual'
-            : `📍 ${formatDistance(item.distance_km)}${
+            ? 'Virtual'
+            : `${formatDistance(item.distance_km)}${
                 !isKnowledge && item.condition ? ` · ${CONDITION_LABELS[item.condition]}` : ''
               }`}
         </Text>
@@ -159,9 +161,7 @@ export function ItemCard({ item }: { item: FeedItemRow }) {
         style={({ pressed }) => [styles.heartButton, pressed && styles.heartPressed]}
       >
         <View style={styles.heartBackdrop} />
-        <Text style={[styles.heartIcon, saved && styles.heartIconSaved]}>
-          {saved ? '♥' : '♡'}
-        </Text>
+        <Icon name="heart" size={20} weight={saved ? 'fill' : 'regular'} color={saved ? colors.festiveInk : colors.inkMuted} />
       </Pressable>
     </View>
   );
@@ -213,8 +213,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: spacing.xs,
     right: spacing.xs,
-    width: 30,
-    height: 30,
+    width: 36,
+    height: 36,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
@@ -233,14 +233,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     opacity: 0.85,
     borderRadius: radius.full,
-  },
-  heartIcon: {
-    fontSize: 16,
-    lineHeight: 19,
-    color: colors.inkMuted,
-  },
-  heartIconSaved: {
-    color: colors.festiveInk,
   },
   body: {
     padding: spacing.sm,

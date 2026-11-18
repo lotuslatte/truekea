@@ -11,17 +11,19 @@ import {
   View,
 } from 'react-native';
 
+import { DistrictPicker } from '@/components/DistrictPicker';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { SelectField } from '@/components/ui/SelectField';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { TextField } from '@/components/ui/TextField';
-import { LIMA_DISTRICTS, districtCentroid, toWkt } from '@/constants/districts';
+import { districtCentroid, toWkt } from '@/constants/districts';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useCategories } from '@/features/categories';
+import { PhotoGridEditor } from '@/features/items/PhotoGridEditor';
+import { MAX_PHOTOS, saveItemPhotos, type EditablePhoto } from '@/features/items/photos';
 import { notify } from '@/lib/confirm';
-import { supabase } from '@/lib/supabase';
+import { publicPhotoUrl, supabase } from '@/lib/supabase';
 import { colors, fonts, fontSizes, radius, spacing } from '@/theme/tokens';
 import type {
   Item,
@@ -33,11 +35,10 @@ import type {
 
 type ItemDetail = Item & { item_photos: ItemPhoto[]; owner: Profile };
 
-const DISTRICT_OPTIONS = LIMA_DISTRICTS.map((d) => ({ label: d.name, value: d.name }));
 
 const MODALITY_OPTIONS: { value: KnowledgeModality; label: string }[] = [
-  { value: 'in_person', label: '🤝 Presencial' },
-  { value: 'virtual', label: '💻 Virtual' },
+  { value: 'in_person', label: 'Presencial' },
+  { value: 'virtual', label: 'Virtual' },
 ];
 
 const CONDITION_OPTIONS: { value: ItemCondition; label: string }[] = [
@@ -128,6 +129,12 @@ function EditForm({ item }: { item: ItemDetail }) {
   const [modality, setModality] = useState<KnowledgeModality | null>(item.modality);
   const [isDonation, setIsDonation] = useState(item.is_donation);
   const [error, setError] = useState<string | undefined>();
+  const [photos, setPhotos] = useState<EditablePhoto[]>(() =>
+    [...item.item_photos]
+      .sort((a, b) => a.position - b.position)
+      .map((photo) => ({ uri: publicPhotoUrl(photo.storage_path), existing: photo })),
+  );
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -168,6 +175,10 @@ function EditForm({ item }: { item: ItemDetail }) {
         .update(payload)
         .eq('id', item.id);
       if (updateError) throw updateError;
+
+      await saveItemPhotos(item.owner_id, item.id, item.item_photos, photos, (done, total) =>
+        setUploadProgress({ done, total }),
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['item', item.id] });
@@ -177,7 +188,8 @@ function EditForm({ item }: { item: ItemDetail }) {
       router.back();
     },
     onError: (e) => {
-      notify('Ups, no pudimos guardar', e.message);
+      setUploadProgress(null);
+      notify('No pudimos guardar', e.message);
     },
   });
 
@@ -192,6 +204,10 @@ function EditForm({ item }: { item: ItemDetail }) {
     }
     if (!isKnowledge && condition == null) {
       setError('Cuéntanos en qué estado está tu objeto');
+      return;
+    }
+    if (!isKnowledge && photos.length === 0) {
+      setError('Deja al menos una foto para que vean tu objeto');
       return;
     }
     setError(undefined);
@@ -243,14 +259,7 @@ function EditForm({ item }: { item: ItemDetail }) {
           </View>
         </View>
 
-        <SelectField
-          label="Distrito"
-          placeholder="Elige tu distrito"
-          value={district}
-          options={DISTRICT_OPTIONS}
-          onChange={setDistrict}
-          searchable
-        />
+        <DistrictPicker value={district} onChange={setDistrict} />
 
         {!isKnowledge ? (
           <View style={styles.fieldGroup}>
@@ -286,7 +295,7 @@ function EditForm({ item }: { item: ItemDetail }) {
 
         {!isKnowledge ? (
           <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>Es un regalo 🎁</Text>
+            <Text style={styles.switchLabel}>Es un regalo</Text>
             <Switch
               value={isDonation}
               onValueChange={setIsDonation}
@@ -311,7 +320,16 @@ function EditForm({ item }: { item: ItemDetail }) {
           maxLength={200}
         />
 
-        <Text style={styles.photosNote}>Las fotos no se pueden cambiar por ahora</Text>
+        <View style={styles.photosBlock}>
+          <Text style={styles.photosLabel}>Fotos</Text>
+          <Text style={styles.photosNote}>Hasta {MAX_PHOTOS}. La primera es la portada.</Text>
+          <PhotoGridEditor photos={photos} onChange={setPhotos} disabled={save.isPending} />
+          {save.isPending && uploadProgress ? (
+            <Text style={styles.photosNote} accessibilityLiveRegion="polite">
+              Subiendo fotos: {uploadProgress.done} de {uploadProgress.total}
+            </Text>
+          ) : null}
+        </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -373,6 +391,8 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     color: colors.ink,
   },
+  photosBlock: { gap: spacing.sm },
+  photosLabel: { fontFamily: fonts.bodyMedium, fontSize: fontSizes.sm, color: colors.ink },
   photosNote: {
     fontFamily: fonts.body,
     fontSize: fontSizes.xs,

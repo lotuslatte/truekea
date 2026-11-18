@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/ui/Icon';
 import { TextField } from '@/components/ui/TextField';
 import { colors, fonts, fontSizes, radius, spacing } from '@/theme/tokens';
 
@@ -72,7 +73,7 @@ export function SelectField({ label, placeholder, value, options, onChange, sear
                   >
                     {option.label}
                   </Text>
-                  {option.value === value ? <Text style={styles.check}>✓</Text> : null}
+                  {option.value === value ? <Icon name="check" size={18} color={colors.primary} weight="bold" /> : null}
                 </Pressable>
               )}
             />

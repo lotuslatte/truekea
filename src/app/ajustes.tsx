@@ -2,11 +2,11 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { DistrictPicker } from '@/components/DistrictPicker';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
-import { Chip } from '@/components/ui/Chip';
 import { TextField } from '@/components/ui/TextField';
-import { LIMA_DISTRICTS, districtCentroid, toWkt } from '@/constants/districts';
+import { districtCentroid, toWkt } from '@/constants/districts';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useBlockedUsers, useUnblockUser } from '@/features/moderation/api';
 import { confirmAction, notify } from '@/lib/confirm';
@@ -20,16 +20,11 @@ export default function SettingsScreen() {
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [bio, setBio] = useState(profile?.bio ?? '');
   const [district, setDistrict] = useState<string | null>(profile?.district ?? null);
-  const [districtQuery, setDistrictQuery] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const blockedQuery = useBlockedUsers();
   const unblockUser = useUnblockUser();
-
-  const filteredDistricts = LIMA_DISTRICTS.filter((d) =>
-    d.name.toLowerCase().includes(districtQuery.toLowerCase()),
-  );
 
   const saveProfile = async () => {
     if (!session) return;
@@ -55,7 +50,7 @@ export default function SettingsScreen() {
       return;
     }
     await refreshProfile();
-    notify('¡Listo! 🌱', 'Tu perfil quedó actualizado.');
+    notify('¡Listo!', 'Tu perfil quedó actualizado.');
   };
 
   const deleteAccount = () => {
@@ -105,25 +100,7 @@ export default function SettingsScreen() {
         maxLength={300}
         style={styles.bioInput}
       />
-      <View style={styles.districtSection}>
-        <Text style={styles.label}>Tu distrito</Text>
-        <TextField
-          placeholder="Busca tu distrito…"
-          value={districtQuery}
-          onChangeText={setDistrictQuery}
-        />
-        <View style={styles.chips}>
-          {(districtQuery ? filteredDistricts : LIMA_DISTRICTS).slice(0, 12).map((d) => (
-            <Chip
-              key={d.name}
-              label={d.name}
-              selected={district === d.name}
-              onPress={() => setDistrict(d.name)}
-            />
-          ))}
-        </View>
-        {district ? <Text style={styles.districtChosen}>📍 {district}</Text> : null}
-      </View>
+      <DistrictPicker value={district} onChange={setDistrict} label="Tu distrito" />
       <Button title="Guardar cambios" onPress={saveProfile} loading={saving} />
 
       <Text style={styles.sectionTitle}>Usuarios bloqueados</Text>
@@ -176,7 +153,7 @@ export default function SettingsScreen() {
         onPress={() => router.push('/puntos-seguros')}
         hitSlop={8}
       >
-        <Text style={styles.legalLink}>Puntos de encuentro seguros 🛡️</Text>
+        <Text style={styles.legalLink}>Puntos de encuentro seguros</Text>
       </Pressable>
 
       <Text style={styles.sectionTitle}>Legal</Text>

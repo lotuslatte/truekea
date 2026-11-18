@@ -6,6 +6,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { Thumb } from '@/components/Thumb';
+import { Icon } from '@/components/ui/Icon';
+import { IconText } from '@/components/ui/IconText';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -104,9 +107,9 @@ export default function PublicProfileScreen() {
         <Avatar url={profile.avatar_url} name={profile.display_name} size={72} />
         <Text style={styles.name}>{profile.display_name}</Text>
         <Text style={styles.username}>@{profile.username}</Text>
-        {profile.district ? <Text style={styles.district}>📍 {profile.district}</Text> : null}
+        {profile.district ? <IconText icon="location" style={styles.district}>{profile.district}</IconText> : null}
         <View style={styles.badges}>
-          {profile.phone_verified ? <Badge label="📱 Teléfono verificado" tone="success" /> : null}
+          {profile.phone_verified ? <Badge icon="phone" label="Teléfono verificado" tone="success" /> : null}
           <AyniBadge
             tradesCompleted={profile.trades_completed}
             circlesHosted={profile.circles_hosted}
@@ -121,19 +124,19 @@ export default function PublicProfileScreen() {
         ) : null}
         <View style={styles.statsRow}>
           <View style={styles.statTile}>
-            <Text style={styles.statValue}>🔁 {profile.trades_completed}</Text>
+            <IconText icon="repeat" style={styles.statValue}>{profile.trades_completed}</IconText>
             <Text style={styles.statLabel}>truekes</Text>
           </View>
           <View style={styles.statTile}>
-            <Text style={styles.statValue}>⭕ {profile.circles_hosted}</Text>
+            <IconText icon="people" style={styles.statValue}>{profile.circles_hosted}</IconText>
             <Text style={styles.statLabel}>círculos</Text>
           </View>
           <View style={styles.statTile}>
-            <Text style={styles.statValue}>🎁 {profile.donations_given}</Text>
+            <IconText icon="gift" style={styles.statValue}>{profile.donations_given}</IconText>
             <Text style={styles.statLabel}>regalos</Text>
           </View>
           <View style={styles.statTile}>
-            <Text style={styles.statValue}>🌎 {getCo2SavedKg(profile)}</Text>
+            <IconText icon="planet" style={styles.statValue}>{getCo2SavedKg(profile)}</IconText>
             <Text style={styles.statLabel}>kg CO₂ evitados</Text>
           </View>
         </View>
@@ -151,7 +154,6 @@ export default function PublicProfileScreen() {
       ) : (
         <View style={styles.list}>
           {publicaciones.map((item) => {
-            const photo = [...item.item_photos].sort((a, b) => a.position - b.position)[0];
             return (
               <Pressable
                 key={item.id}
@@ -159,19 +161,13 @@ export default function PublicProfileScreen() {
                 style={({ pressed }) => [styles.itemRow, pressed ? styles.rowPressed : null]}
                 onPress={() => router.push(`/item/${item.id}` as never)}
               >
-                {photo ? (
-                  <Image source={{ uri: publicPhotoUrl(photo.storage_path) }} style={styles.thumb} />
-                ) : (
-                  <View style={[styles.thumb, styles.thumbFallback]}>
-                    <Text>{item.kind === 'knowledge' ? '🎓' : '📦'}</Text>
-                  </View>
-                )}
+                <Thumb item={item} style={styles.thumb} />
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemTitle} numberOfLines={1}>
                     {item.title}
                   </Text>
                   <Text style={styles.itemValue}>
-                    {item.is_donation ? '🎁 Regalo' : item.kind === 'knowledge' ? '🧠 Saber' : '📦 Objeto'}
+                    {item.is_donation ? 'Regalo' : item.kind === 'knowledge' ? 'Saber' : 'Objeto'}
                   </Text>
                 </View>
               </Pressable>
@@ -252,9 +248,9 @@ function HostCirclesShowcase({ userId, circlesHosted }: { userId: string; circle
     <>
       <Text style={styles.sectionTitle}>Sus círculos</Text>
       {circlesHosted > 0 ? (
-        <Text style={styles.circlesHistory}>
-          🏔️ {circlesHosted} {circlesHosted === 1 ? 'círculo dictado' : 'círculos dictados'}
-        </Text>
+        <IconText icon="people" style={styles.circlesHistory}>
+          {circlesHosted} {circlesHosted === 1 ? 'círculo dictado' : 'círculos dictados'}
+        </IconText>
       ) : null}
       {upcoming.length === 0 ? (
         <Text style={styles.emptyText}>Por ahora no tiene círculos programados.</Text>
@@ -284,7 +280,7 @@ function HostCircleCard({ circle }: { circle: HostCircle }) {
         <Image source={{ uri: publicPhotoUrl(photo.storage_path) }} style={styles.thumb} />
       ) : (
         <View style={[styles.thumb, styles.thumbFallback]}>
-          <Text>⭕</Text>
+          <Icon name="people" size={20} color={colors.accentInk} />
         </View>
       )}
       <View style={styles.itemInfo}>
@@ -292,12 +288,12 @@ function HostCircleCard({ circle }: { circle: HostCircle }) {
           {circle.title}
         </Text>
         {circle.event_at ? (
-          <Text style={styles.circleDate}>📅 {formatCircleDate(circle.event_at)}</Text>
+          <IconText icon="calendar" style={styles.circleDate}>{formatCircleDate(circle.event_at)}</IconText>
         ) : null}
         {circle.capacity != null ? (
-          <Text style={styles.circleSeats}>
-            🪑 {occupancy.data ?? 0}/{circle.capacity} cupos
-          </Text>
+          <IconText icon="seats" style={styles.circleSeats}>
+            {occupancy.data ?? 0}/{circle.capacity} cupos
+          </IconText>
         ) : null}
       </View>
     </Pressable>
@@ -353,7 +349,7 @@ function ModerationActions({ otherId, otherName }: { otherId: string; otherName:
           setReportOpen(false);
           setReason(null);
           setDetails('');
-          notify('Gracias por avisarnos 🙏', 'Revisaremos este perfil para cuidar a la comunidad.');
+          notify('Gracias por avisarnos', 'Revisaremos este perfil para cuidar a la comunidad.');
         },
         onError: () => notify('Ups', 'No pudimos enviar tu reporte. Inténtalo de nuevo.'),
       },
@@ -364,7 +360,7 @@ function ModerationActions({ otherId, otherName }: { otherId: string; otherName:
     <View style={styles.moderation}>
       <Pressable accessibilityRole="button" onPress={toggleBlock} hitSlop={8}>
         <Text style={styles.moderationLink}>
-          {blocked ? 'Desbloquear usuario' : '🚫 Bloquear usuario'}
+          {blocked ? 'Desbloquear usuario' : 'Bloquear usuario'}
         </Text>
       </Pressable>
       <Pressable accessibilityRole="button" onPress={() => setReportOpen(true)} hitSlop={8}>

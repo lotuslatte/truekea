@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
+import { DistrictPicker } from '@/components/DistrictPicker';
 import { Button } from '@/components/ui/Button';
-import { SelectField } from '@/components/ui/SelectField';
 import { TextField } from '@/components/ui/TextField';
-import { LIMA_DISTRICTS, districtCentroid, toWkt } from '@/constants/districts';
+import { districtCentroid, toWkt } from '@/constants/districts';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { colors, fonts, fontSizes, spacing } from '@/theme/tokens';
@@ -74,14 +74,7 @@ export default function ProfileSetupScreen() {
         maxLength={20}
         hint="Así te verán los demás truekeros"
       />
-      <SelectField
-        label="Tu distrito"
-        placeholder="Elige tu distrito"
-        value={district}
-        options={LIMA_DISTRICTS.map((d) => ({ label: d.name, value: d.name }))}
-        onChange={setDistrict}
-        searchable
-      />
+      <DistrictPicker value={district} onChange={setDistrict} label="Tu distrito" />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button title="Empezar a truekear" onPress={save} loading={saving} />
       <Pressable onPress={signOut} accessibilityRole="button" hitSlop={8}>

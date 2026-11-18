@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { StatusBadge } from '@/components/StatusBadge';
+import { Thumb } from '@/components/Thumb';
+import { Icon } from '@/components/ui/Icon';
 import { LeafConfetti } from '@/components/LeafConfetti';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -21,55 +23,26 @@ import {
   useRejectOffer,
   type ItemWithPhotos,
 } from '@/features/offers/api';
+import { offerActions } from '@/features/offers/machine';
 import { confirmAction, notify } from '@/lib/confirm';
+import { track } from '@/lib/telemetry';
 import { timeAgo } from '@/lib/format';
-import { publicPhotoUrl, supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { colors, fonts, fontSizes, radius, shadows, spacing } from '@/theme/tokens';
-import type { OfferStatus } from '@/types/database';
-
-type BadgeTone = 'primary' | 'accent' | 'success' | 'warning' | 'danger' | 'donation' | 'muted';
-
-const STATUS_META: Record<OfferStatus, { label: string; tone: BadgeTone }> = {
-  pending: { label: 'Pendiente', tone: 'warning' },
-  accepted: { label: 'Aceptada', tone: 'success' },
-  rejected: { label: 'Rechazada', tone: 'danger' },
-  countered: { label: 'Contraofertada', tone: 'accent' },
-  cancelled: { label: 'Cancelada', tone: 'muted' },
-  expired: { label: 'Vencida', tone: 'muted' },
-};
-
-function firstPhotoUrl(item: ItemWithPhotos): string | null {
-  const sorted = [...item.item_photos].sort((a, b) => a.position - b.position);
-  const photo = sorted[0];
-  return photo ? publicPhotoUrl(photo.storage_path) : null;
-}
 
 function ItemCard({ item, caption }: { item: ItemWithPhotos; caption: string }) {
-  const photo = firstPhotoUrl(item);
   const isKnowledge = item.kind === 'knowledge';
   return (
     <View style={styles.itemCard}>
       <Text style={styles.itemCaption}>{caption}</Text>
-      {photo ? (
-        <Image source={{ uri: photo }} style={styles.itemPhoto} contentFit="cover" />
-      ) : (
-        <View
-          style={[
-            styles.itemPhoto,
-            styles.photoFallback,
-            isKnowledge && styles.knowledgeFallback,
-          ]}
-        >
-          <Text style={styles.photoEmoji}>{isKnowledge ? '🎓' : '📷'}</Text>
-        </View>
-      )}
+      <Thumb item={item} style={styles.itemPhoto} />
       <Text style={styles.itemTitle} numberOfLines={2}>
         {item.title}
       </Text>
       {isKnowledge || item.is_donation ? (
         <View style={styles.itemBadges}>
-          {isKnowledge ? <Badge tone="accent" label="🧠 Saber" /> : null}
-          {item.is_donation ? <Badge tone="donation" label="Regalo 🎁" /> : null}
+          {isKnowledge ? <Badge tone="accent" icon="knowledge" label="Saber" /> : null}
+          {item.is_donation ? <Badge tone="donation" icon="gift" label="Regalo" /> : null}
         </View>
       ) : null}
     </View>
@@ -132,9 +105,8 @@ export default function OfferDetailScreen() {
 
   const isOwner = offer.item.owner_id === uid;
   const isOfferer = offer.offerer_id === uid;
-  const meta = STATUS_META[offer.status];
   // Solo se puede contraofertar cuando hay un objeto ofrecido (no donaciones).
-  const canCounter = isOwner && offer.status === 'pending' && offer.offered_item_id != null;
+  const { canAccept, canCounter, canCancel } = offerActions(offer, offer.item.owner_id, uid);
   const counterItems = (myItems.data ?? []).filter((mine) => mine.id !== offer.item_id);
 
   const onAccept = () => {
@@ -142,7 +114,8 @@ export default function OfferDetailScreen() {
       onSuccess: (tradeId) => {
         // Celebración: hojas cayendo y un respiro festivo antes de navegar.
         setCelebration((count) => count + 1);
-        notify('¡Trueke acordado! 🤝', 'Coordina la entrega por el chat.');
+        notify('¡Trueke acordado!', 'Coordina la entrega por el chat.');
+        track('offer_accepted');
         setTimeout(() => router.replace(`/trueke/${tradeId}`), 700);
       },
       onError: () =>
@@ -190,7 +163,7 @@ export default function OfferDetailScreen() {
       },
       {
         onSuccess: (newOfferId) => {
-          notify('¡Contraoferta enviada! 🌱', 'Te avisaremos cuando respondan.');
+          notify('¡Contraoferta enviada!', 'Te avisaremos cuando respondan.');
           router.replace(`/oferta/${newOfferId}`);
         },
         onError: () =>
@@ -203,22 +176,20 @@ export default function OfferDetailScreen() {
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <View style={styles.statusRow}>
-        <Badge tone={meta.tone} label={meta.label} />
+        <StatusBadge offer={offer.status} />
         <Text style={styles.time}>{timeAgo(offer.created_at)}</Text>
       </View>
 
       {/* Los dos lados del trueke */}
       <View style={styles.swapRow}>
         <ItemCard item={offer.item} caption={isOwner ? 'Tu objeto' : 'Su objeto'} />
-        <Text style={styles.swapArrow}>↔</Text>
+        <Icon name="swap" size={18} color={colors.inkMuted} label="por" />
         {offer.offered_item ? (
           <ItemCard item={offer.offered_item} caption={isOfferer ? 'Tu objeto' : 'Ofrecen'} />
         ) : (
           <View style={styles.itemCard}>
             <Text style={styles.itemCaption}>A cambio</Text>
-            <View style={[styles.itemPhoto, styles.photoFallback]}>
-              <Text style={styles.photoEmoji}>🎁</Text>
-            </View>
+            <Thumb item={null} style={styles.itemPhoto} />
             <Text style={styles.giftText}>Sin objeto a cambio — es un regalo</Text>
           </View>
         )}
@@ -242,11 +213,11 @@ export default function OfferDetailScreen() {
           <Text style={styles.offererName}>{offer.offerer.display_name}</Text>
           <RatingStars value={offer.offerer.rating_avg ?? 0} count={offer.offerer.rating_count} />
         </View>
-        <Text style={styles.chevron}>›</Text>
+        <Icon name="chevron" size={18} color={colors.inkFaint} />
       </Pressable>
 
       {/* Acciones */}
-      {isOwner && offer.status === 'pending' ? (
+      {canAccept ? (
         <View style={styles.actions}>
           <Button title="Aceptar" onPress={onAccept} loading={accept.isPending} />
           <Button title="Rechazar" variant="danger" onPress={onReject} loading={reject.isPending} />
@@ -276,7 +247,6 @@ export default function OfferDetailScreen() {
                 >
                   {counterItems.map((mine) => {
                     const selected = mine.id === counterItemId;
-                    const photo = firstPhotoUrl(mine);
                     const isKnowledge = mine.kind === 'knowledge';
                     return (
                       <Pressable
@@ -286,29 +256,13 @@ export default function OfferDetailScreen() {
                         onPress={() => setCounterItemId(selected ? null : mine.id)}
                         style={[styles.pickCard, selected && styles.pickCardSelected]}
                       >
-                        {photo ? (
-                          <Image
-                            source={{ uri: photo }}
-                            style={styles.pickPhoto}
-                            contentFit="cover"
-                          />
-                        ) : (
-                          <View
-                            style={[
-                              styles.pickPhoto,
-                              styles.photoFallback,
-                              isKnowledge && styles.knowledgeFallback,
-                            ]}
-                          >
-                            <Text style={styles.photoEmoji}>{isKnowledge ? '🎓' : '📷'}</Text>
-                          </View>
-                        )}
+                        <Thumb item={mine} style={styles.pickPhoto} />
                         <Text style={styles.pickTitle} numberOfLines={2}>
                           {mine.title}
                         </Text>
                         {isKnowledge ? (
                           <View style={styles.itemBadges}>
-                            <Badge tone="accent" label="🧠 Saber" />
+                            <Badge tone="accent" icon="knowledge" label="Saber" />
                           </View>
                         ) : null}
                       </Pressable>
@@ -337,7 +291,7 @@ export default function OfferDetailScreen() {
         </View>
       ) : null}
 
-      {isOfferer && offer.status === 'pending' ? (
+      {canCancel ? (
         <View style={styles.actions}>
           <Button
             title="Cancelar oferta"

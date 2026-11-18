@@ -1,6 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -10,6 +9,7 @@ import { useAuth } from '@/features/auth/AuthProvider';
 import { useCategories } from '@/features/categories';
 import { useCreateItem } from '@/features/items/api';
 import { notify } from '@/lib/confirm';
+import { pickPhotos } from '@/lib/photos';
 import { colors, fonts, fontSizes, radius, spacing } from '@/theme/tokens';
 
 /**
@@ -27,18 +27,8 @@ export function QuickPublish({ targetTitle, onCreated }: { targetTitle: string; 
   const [error, setError] = useState<string | null>(null);
 
   const pick = async (source: 'camera' | 'library') => {
-    if (source === 'camera') {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        notify('No pudimos abrir la cámara', 'Activa el permiso de cámara en los ajustes o elige una foto de tu galería.');
-        return;
-      }
-    }
-    const result = source === 'camera'
-      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-    const asset = result.canceled ? null : result.assets[0];
-    if (asset) setPhoto({ uri: asset.uri });
+    const [uri] = await pickPhotos(source);
+    if (uri) setPhoto({ uri });
   };
 
   const submit = () => {

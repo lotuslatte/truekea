@@ -7,6 +7,7 @@ export function confirmAction(opts: {
   title: string;
   message?: string;
   confirmLabel?: string;
+  cancelLabel?: string;
   destructive?: boolean;
   onConfirm: () => void;
 }) {
@@ -16,7 +17,7 @@ export function confirmAction(opts: {
     return;
   }
   Alert.alert(opts.title, opts.message, [
-    { text: 'Volver', style: 'cancel' },
+    { text: opts.cancelLabel ?? 'Volver', style: 'cancel' },
     {
       text: opts.confirmLabel ?? 'Confirmar',
       style: opts.destructive ? 'destructive' : 'default',

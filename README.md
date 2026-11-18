@@ -45,6 +45,7 @@ Sin `.env` la app compila pero no puede iniciar sesión (apunta a un placeholder
    ```
    Crea 2 usuarios demo con teléfono confirmado (`+51 911 111 111` / `+51 922 222 222`, contraseña definida en `DEMO_PASSWORD`), 16 publicaciones con fotos, una oferta pendiente y un trueke acordado con chat — todo a través de la máquina de estados real. Idempotente.
 6. **Verificación del schema:** `psql "$DB_URL" -f supabase/tests/rls_smoke.sql` — prueba RLS, la máquina de estados (aceptar oferta → trade → confirmación mutua → calificación) y bloqueos. Termina en ROLLBACK.
+7. **Pruebas sin tocar ningún proyecto de Supabase:** `npm run test:db` aplica todas las migraciones y el seed a un Postgres en memoria (PGlite con PostGIS) y corre `supabase/tests/rls_smoke.sql` y `supabase/tests/state_machine.sql`. `npm test` corre las pruebas unitarias (jest-expo) de la máquina de estados del cliente y de los helpers puros.
 7. **Ofertas vencidas:** programa `select public.expire_stale_offers();` (pg_cron o cron de edge function) cada día.
 
 Con Docker instalado también puedes correr todo local: `npx supabase start` y `npx supabase db reset` (aplica migraciones + seed; hay números de prueba `+51900000001/2` con OTP `123456` en `config.toml`).

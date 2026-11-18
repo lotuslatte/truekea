@@ -49,22 +49,6 @@ export function useTrade(id: string) {
   });
 }
 
-export function useMeetingPoints() {
-  return useQuery({
-    queryKey: ['meetingPoints'],
-    staleTime: Infinity,
-    queryFn: async (): Promise<MeetingPoint[]> => {
-      const { data, error } = await supabase
-        .from('meeting_points')
-        .select('*')
-        .eq('is_active', true)
-        .order('district', { ascending: true });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-}
-
 function invalidateTradeQueries(queryClient: ReturnType<typeof useQueryClient>) {
   for (const queryKey of [['trade'], ['myItems'], ['chats']]) {
     queryClient.invalidateQueries({ queryKey });
@@ -132,6 +116,37 @@ export function useMyRatingForTrade(tradeId: string) {
         .maybeSingle();
       if (error) throw error;
       return data;
+    },
+  });
+}
+
+export function useProposeMeetingTime() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { tradeId: string; at: Date }): Promise<void> => {
+      const { error } = await supabase.rpc('propose_meeting_time', {
+        p_trade_id: input.tradeId,
+        p_at: input.at.toISOString(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidateTradeQueries(queryClient);
+    },
+  });
+}
+
+export function useAcceptMeetingTime() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (tradeId: string): Promise<void> => {
+      const { error } = await supabase.rpc('accept_meeting_time', { p_trade_id: tradeId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidateTradeQueries(queryClient);
     },
   });
 }

@@ -3,8 +3,10 @@
 // Como todos los eventos del dominio (ofertas, mensajes, truekes, calificaciones)
 // escriben en notifications vía notify_user(), este único webhook cubre todo.
 //
-// Config: Dashboard → Database → Webhooks → tabla notifications, evento INSERT,
-// tipo "Supabase Edge Function" → send-push.
+// Invocación: el trigger de la migración 0012 (pg_net). No configurar además
+// un Database Webhook en el Dashboard para la misma tabla: con los dos activos
+// cada evento llama dos veces a esta función. Si llegara a pasar, claim_push
+// (migración 0018) deja pasar solo la primera llamada.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
@@ -72,6 +74,30 @@ function buildMessage(record: NotificationRecord): { title: string; body: string
         body: `Publicaron «${p.item_title ?? 'algo de tu lista'}» cerca de ti.`,
         url: `/item/${p.item_id}`,
       };
+    case 'item_question':
+      return {
+        title: 'Pregunta nueva',
+        body: `Preguntaron por «${p.item_title ?? 'tu publicación'}».`,
+        url: `/item/${p.item_id}`,
+      };
+    case 'item_answer':
+      return {
+        title: 'Respondieron tu pregunta',
+        body: `Hay una respuesta en «${p.item_title ?? 'la publicación'}».`,
+        url: `/item/${p.item_id}`,
+      };
+    case 'meeting_proposed':
+      return {
+        title: 'Propuesta de encuentro',
+        body: 'Te propusieron fecha y hora para la entrega.',
+        url: `/trueke/${p.trade_id}`,
+      };
+    case 'meeting_accepted':
+      return {
+        title: 'Fecha confirmada',
+        body: 'Aceptaron la fecha y hora que propusiste.',
+        url: `/trueke/${p.trade_id}`,
+      };
     default:
       return null;
   }
@@ -89,6 +115,15 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
+
+  // One push per notification row. This function can be called twice for the
+  // same INSERT (Dashboard webhook plus the pg_net trigger of migration 0012,
+  // or a pg_net retry): the first call claims the row, the second one stops.
+  // If the claim itself fails (migration 0018 not applied yet), send anyway.
+  const { data: claimed, error: claimError } = await supabase.rpc('claim_push', {
+    p_notification_id: record.id,
+  });
+  if (!claimError && claimed === false) return new Response('already sent', { status: 200 });
 
   const { data: tokens } = await supabase
     .from('push_tokens')

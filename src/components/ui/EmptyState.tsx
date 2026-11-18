@@ -1,25 +1,28 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
 import { Chakana } from '@/features/intro/Chakana';
 import { colors, fonts, fontSizes, spacing } from '@/theme/tokens';
 
 type Props = {
-  emoji: string;
+  /** Decorative emoji, or an icon name. One of the two. */
+  emoji?: string;
+  icon?: IconName;
   title: string;
   subtitle?: string;
   actionTitle?: string;
   onAction?: () => void;
 };
 
-export function EmptyState({ emoji, title, subtitle, actionTitle, onAction }: Props) {
+export function EmptyState({ emoji, icon, title, subtitle, actionTitle, onAction }: Props) {
   return (
     <View style={styles.wrapper}>
       <View style={styles.emblem} accessible={false} importantForAccessibility="no-hide-descendants">
         <View style={styles.watermark}>
           <Chakana size={104} color={colors.inkFaint} opacity={0.22} />
         </View>
-        <Text style={styles.emoji}>{emoji}</Text>
+        {icon ? <Icon name={icon} size={44} color={colors.inkMuted} /> : <Text style={styles.emoji}>{emoji}</Text>}
       </View>
       <Text style={styles.title}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}

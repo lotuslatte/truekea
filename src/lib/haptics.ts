@@ -15,6 +15,11 @@ export function hapticCelebrate(): void {
   }
 }
 
+/**
+ * Light tap for actions that have no toast of their own: sending a chat
+ * message, toggling the heart. Saving and accepting already vibrate through
+ * the toast they show (ToastHost), so they must not call this as well.
+ */
 export function hapticTap(): void {
   if (Platform.OS === 'web') return;
   try {

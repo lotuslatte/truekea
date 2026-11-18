@@ -30,8 +30,34 @@ export async function shareItem(input: { id: string; title: string }): Promise<v
 
   try {
     await navigator.clipboard.writeText(url);
-    notify('Enlace copiado 📋', 'Pégalo donde quieras compartirlo.');
+    notify('Enlace copiado', 'Pégalo donde quieras compartirlo.');
   } catch {
     // Sin portapapeles disponible (permisos/contexto): no hacemos nada.
+  }
+}
+
+/** Shares plain text: system sheet on native, Web Share or the clipboard on web. */
+export async function shareText(message: string, title = 'Truekea'): Promise<void> {
+  if (Platform.OS !== 'web') {
+    try {
+      await Share.share({ message });
+    } catch {
+      // A closed or failed share sheet interrupts nothing.
+    }
+    return;
+  }
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ title, text: message });
+    } catch {
+      // Cancelling the dialog throws AbortError.
+    }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(message);
+    notify('Texto copiado', 'Pégalo donde quieras compartirlo.');
+  } catch {
+    notify('No se pudo copiar el texto');
   }
 }

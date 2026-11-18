@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { SaveFormat, manipulateAsync } from 'expo-image-manipulator';
 
 import { districtCentroid, toWkt } from '@/constants/districts';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { uploadPhotoFiles, type UploadProgress } from '@/features/items/photos';
 import { supabase } from '@/lib/supabase';
 import type {
   Item,
@@ -35,6 +35,8 @@ export type NewItemInput = {
   isDonation: boolean;
   district: string;
   photos: { uri: string }[];
+  /** Called as each photo finishes uploading. */
+  onPhotoProgress?: UploadProgress;
 };
 
 export function useMyItems() {
@@ -91,26 +93,19 @@ export function useCreateItem() {
         .single();
       if (error) throw error;
 
-      for (let i = 0; i < input.photos.length; i++) {
-        const photo = input.photos[i];
-        if (!photo) continue;
-        const resized = await manipulateAsync(photo.uri, [{ resize: { width: 1600 } }], {
-          compress: 0.8,
-          format: SaveFormat.JPEG,
-        });
-        const res = await fetch(resized.uri);
-        const buf = await res.arrayBuffer();
-        const storagePath = `${uid}/${item.id}-${i}.jpg`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('item-photos')
-          .upload(storagePath, buf, { contentType: 'image/jpeg' });
-        if (uploadError) throw uploadError;
-
-        const { error: photoError } = await supabase
-          .from('item_photos')
-          .insert({ item_id: item.id, storage_path: storagePath, position: i });
-        if (photoError) throw photoError;
+      if (input.photos.length > 0) {
+        try {
+          const paths = await uploadPhotoFiles(uid, item.id, input.photos.map((p) => p.uri), input.onPhotoProgress);
+          const { error: photoError } = await supabase
+            .from('item_photos')
+            .insert(paths.map((storage_path, position) => ({ item_id: item.id, storage_path, position })));
+          if (photoError) throw photoError;
+        } catch (photoFailure) {
+          // Do not leave a listing without its photos in the feed: the form
+          // keeps the draft and the person can publish again.
+          await supabase.from('items').delete().eq('id', item.id);
+          throw photoFailure instanceof Error ? photoFailure : new Error('No se pudieron subir las fotos.');
+        }
       }
 
       return item;

@@ -17,7 +17,7 @@ function ChatRow({ chat, uid, onPress }: { chat: MyChatRow; uid: string; onPress
   // Para círculos, other_* trae al anfitrión y owner_item_title el título del círculo.
   const isMyCircle = chat.is_circle && chat.other_id === uid;
   const title = chat.is_circle ? chat.owner_item_title : chat.other_display_name;
-  const exchange = `«${chat.owner_item_title}» ↔ «${chat.offerer_item_title ?? '🎁 regalo'}»`;
+  const exchange = `«${chat.owner_item_title}» por «${chat.offerer_item_title ?? 'un regalo'}»`;
   const preview = chat.last_message
     ? chat.last_sender_id === uid
       ? `Tú: ${chat.last_message}`
@@ -46,7 +46,7 @@ function ChatRow({ chat, uid, onPress }: { chat: MyChatRow; uid: string; onPress
         </View>
         {chat.is_circle ? (
           <View style={styles.circleLine}>
-            <Badge label="⭕ Círculo" tone="accent" />
+            <Badge icon="people" label="Círculo" tone="accent" />
             <Text style={styles.circleHost} numberOfLines={1}>
               {isMyCircle ? 'Tu círculo' : `Anfitrión: ${chat.other_display_name}`}
             </Text>

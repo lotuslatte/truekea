@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/ui/Icon';
 import { colors, fonts, fontSizes, spacing } from '@/theme/tokens';
 
 type Props = {
@@ -28,17 +29,21 @@ export function RatingStars({ value, count, size = 14, onChange }: Props) {
             accessibilityLabel={star === 1 ? '1 estrella' : `${star} estrellas`}
             hitSlop={8}
           >
-            <Text style={{ fontSize: size + 8, color: star <= value ? colors.warning : colors.inkFaint }}>
-              {star <= value ? '★' : '☆'}
-            </Text>
+            <Icon
+              name="star"
+              size={size + 12}
+              weight={star <= value ? 'fill' : 'regular'}
+              color={star <= value ? colors.warning : colors.inkFaint}
+            />
           </Pressable>
         ) : (
-          <Text
+          <Icon
             key={star}
-            style={{ fontSize: size, color: star <= Math.round(value) ? colors.warning : colors.inkFaint }}
-          >
-            {star <= Math.round(value) ? '★' : '☆'}
-          </Text>
+            name="star"
+            size={size + 2}
+            weight={star <= Math.round(value) ? 'fill' : 'regular'}
+            color={star <= Math.round(value) ? colors.warning : colors.inkFaint}
+          />
         ),
       )}
       {count != null ? <Text style={styles.count}>({count})</Text> : null}

@@ -12,7 +12,7 @@ const PAIRS = [
   ['surface', 'primary', 'primary button label'], ['primary', 'primaryFaint', 'secondary button, success badge'], ['primary', 'sand', 'links'],
   ['accentInk', 'accentFaint', 'skill and circle badges'], ['goldInk', 'goldFaint', 'pending badge'], ['festiveInk', 'festiveFaint', 'circle dates'],
   ['ink', 'sand', 'body text'], ['inkMuted', 'sand', 'secondary text'], ['inkMuted', 'surface', 'secondary text on cards'], ['inkFaint', 'surface', 'placeholders'],
-  ['danger', 'dangerFaint', 'error badge'], ['surface', 'danger', 'danger button label'],
+  ['ink', 'primaryFaint', 'location primer, answers'], ['danger', 'dangerFaint', 'error badge'], ['surface', 'danger', 'danger button label'],
 ];
 let failed = 0;
 for (const scheme of ['light', 'dark']) {

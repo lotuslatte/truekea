@@ -1,9 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
+import { Thumb } from '@/components/Thumb';
+import { IconText } from '@/components/ui/IconText';
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { LeafConfetti } from '@/components/LeafConfetti';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -16,8 +18,9 @@ import { AyniBadge } from '@/features/ayni/AyniBadge';
 import { getAchievements, getCo2SavedKg, getProfileBadges } from '@/features/ayni/badges';
 import { useProfileStats } from '@/features/ayni/useProfileStats';
 import { useMyItems, useSetItemStatus, type MyItem } from '@/features/items/api';
+import { useUploadAvatar } from '@/features/profile/avatar';
 import { confirmAction, notify } from '@/lib/confirm';
-import { publicPhotoUrl } from '@/lib/supabase';
+import { pickPhotos, type PhotoSource } from '@/lib/photos';
 import { colors, fonts, fontSizes, radius, shadows, spacing } from '@/theme/tokens';
 import type { ItemStatus } from '@/types/database';
 
@@ -36,6 +39,7 @@ const BADGES_SEEN_KEY = 'truekea:badges_seen';
 export default function PerfilScreen() {
   const router = useRouter();
   const { profile } = useAuth();
+  const uploadAvatar = useUploadAvatar();
   const { data: items, isLoading, isRefetching, refetch } = useMyItems();
   const statsQuery = useProfileStats(profile?.id ?? '');
   const setStatus = useSetItemStatus();
@@ -60,7 +64,7 @@ export default function PerfilScreen() {
           const fresh = unlocked.find((badge) => !seen.has(badge.key));
           if (fresh) {
             setConfettiBurst((prev) => prev + 1);
-            notify('¡Nueva insignia! 🏅', `${fresh.emoji} ${fresh.label} — ${fresh.hint}`);
+            notify('¡Nueva insignia!', `${fresh.emoji} ${fresh.label} — ${fresh.hint}`);
           }
         }
         // Primera vez (sin key): guarda sin celebrar. Luego, actualiza el set.
@@ -91,7 +95,6 @@ export default function PerfilScreen() {
   };
 
   const renderItem = ({ item }: { item: MyItem }) => {
-    const firstPhoto = [...item.item_photos].sort((a, b) => a.position - b.position)[0];
     const badge = STATUS_BADGE[item.status];
     return (
       <Pressable
@@ -100,31 +103,13 @@ export default function PerfilScreen() {
         onPress={() => router.push(`/item/${item.id}`)}
         style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       >
-        {firstPhoto ? (
-          <Image
-            source={{ uri: publicPhotoUrl(firstPhoto.storage_path) }}
-            style={styles.thumbnail}
-            contentFit="cover"
-          />
-        ) : (
-          <View
-            style={[
-              styles.thumbnail,
-              styles.thumbnailEmpty,
-              item.kind === 'knowledge' && styles.thumbnailKnowledge,
-            ]}
-          >
-            <Text style={styles.thumbnailEmoji}>
-              {item.kind === 'knowledge' ? '🎓' : '📦'}
-            </Text>
-          </View>
-        )}
+        <Thumb item={item} style={styles.thumbnail} />
         <View style={styles.cardBody}>
           <Text style={styles.cardTitle} numberOfLines={1}>
             {item.title}
           </Text>
           <View style={styles.badgesRow}>
-            {item.kind === 'knowledge' ? <Badge label="🧠 Saber" tone="accent" /> : null}
+            {item.kind === 'knowledge' ? <Badge icon="knowledge" label="Saber" tone="accent" /> : null}
             {item.is_donation ? <Badge label="Regalo" tone="donation" /> : null}
             <Badge label={badge.label} tone={badge.tone} />
           </View>
@@ -149,7 +134,7 @@ export default function PerfilScreen() {
             ) : null}
             {item.status === 'available' || item.status === 'paused' ? (
               <Pressable accessibilityRole="button" onPress={() => removeItem(item)} hitSlop={6}>
-                <Text style={[styles.actionLink, styles.actionDanger]}>🗑 Eliminar</Text>
+                <Text style={[styles.actionLink, styles.actionDanger]}>Eliminar</Text>
               </Pressable>
             ) : null}
           </View>
@@ -160,20 +145,60 @@ export default function PerfilScreen() {
 
   const profileBadges = profile ? getProfileBadges(profile, stats) : [];
   const co2Saved = profile ? getCo2SavedKg(profile) : 0;
-  const statTiles = [
-    { key: 'truekes', emoji: '🔁', value: profile?.trades_completed ?? 0, label: 'truekes' },
-    { key: 'circulos', emoji: '⭕', value: profile?.circles_hosted ?? 0, label: 'círculos' },
-    { key: 'regalos', emoji: '🎁', value: profile?.donations_given ?? 0, label: 'regalos' },
-    { key: 'co2', emoji: '🌎', value: co2Saved, label: 'kg CO₂ evitados' },
+  const statTiles: { key: string; icon: IconName; value: number; label: string }[] = [
+    { key: 'truekes', icon: 'repeat', value: profile?.trades_completed ?? 0, label: 'truekes' },
+    { key: 'circulos', icon: 'people', value: profile?.circles_hosted ?? 0, label: 'círculos' },
+    { key: 'regalos', icon: 'gift', value: profile?.donations_given ?? 0, label: 'regalos' },
+    { key: 'co2', icon: 'planet', value: co2Saved, label: 'kg CO₂ evitados' },
   ];
+
+  const saveAvatar = async (source: PhotoSource) => {
+    const [uri] = await pickPhotos(source, { square: true });
+    if (!uri) return;
+    uploadAvatar.mutate(uri, {
+      onSuccess: () => notify('Foto de perfil actualizada'),
+      onError: () => notify('No se pudo guardar tu foto', 'Revisa tu conexión e inténtalo de nuevo.'),
+    });
+  };
+
+  const changeAvatar = () => {
+    // The web picker already offers the camera on phones.
+    if (Platform.OS === 'web') {
+      void saveAvatar('library');
+      return;
+    }
+    Alert.alert('Foto de perfil', undefined, [
+      { text: 'Tomar una foto', onPress: () => void saveAvatar('camera') },
+      { text: 'Elegir de la galería', onPress: () => void saveAvatar('library') },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  };
 
   const header = (
     <View style={styles.header}>
       <View style={styles.headerCard}>
-        <Avatar url={profile?.avatar_url ?? null} name={profile?.display_name ?? '?'} size={72} />
+        <Pressable
+          onPress={changeAvatar}
+          disabled={uploadAvatar.isPending}
+          accessibilityRole="button"
+          accessibilityLabel="Cambiar foto de perfil"
+          style={styles.avatarButton}
+        >
+          <Avatar url={profile?.avatar_url ?? null} name={profile?.display_name ?? '?'} size={72} />
+          <View style={styles.avatarEdit}>
+            {uploadAvatar.isPending ? (
+              <ActivityIndicator size="small" color={colors.surface} />
+            ) : (
+              <Icon name="camera" size={14} color={colors.surface} />
+            )}
+          </View>
+        </Pressable>
+        {!profile?.avatar_url ? (
+          <Text style={styles.avatarHint}>Una foto tuya da confianza a quien va a truekear contigo.</Text>
+        ) : null}
         <Text style={styles.displayName}>{profile?.display_name}</Text>
         <Text style={styles.username}>@{profile?.username}</Text>
-        {profile?.district ? <Text style={styles.district}>📍 {profile.district}</Text> : null}
+        {profile?.district ? <IconText icon="location" style={styles.district}>{profile.district}</IconText> : null}
         <RatingStars value={profile?.rating_avg ?? 0} count={profile?.rating_count ?? 0} />
         <AyniBadge
           tradesCompleted={profile?.trades_completed ?? 0}
@@ -190,7 +215,7 @@ export default function PerfilScreen() {
             <Badge key={badge.key} label={`${badge.emoji} ${badge.label}`} tone="gold" />
           ))}
           <View style={styles.seeAllChip}>
-            <Text style={styles.seeAllText}>Ver todas →</Text>
+            <IconText icon="arrow" after style={styles.seeAllText}>Ver todas</IconText>
           </View>
         </Pressable>
         <Text style={styles.tradesCount}>
@@ -200,13 +225,25 @@ export default function PerfilScreen() {
         </Text>
         {/* Columna compacta de accesos: encuentros, deseos/guardados y ajustes. */}
         <Button
-          title="Mis encuentros 📅"
+          title="Mis encuentros"
           variant="secondary"
           onPress={() => router.push('/encuentros')}
           style={styles.settingsButton}
         />
         <Button
-          title="Deseos y guardados ❤️"
+          title="Mi impacto"
+          variant="secondary"
+          onPress={() => router.push('/impacto' as never)}
+          style={styles.compactButton}
+        />
+        <Button
+          title="Coincidencias"
+          variant="secondary"
+          onPress={() => router.push('/coincidencias' as never)}
+          style={styles.compactButton}
+        />
+        <Button
+          title="Deseos y guardados"
           variant="secondary"
           onPress={() => router.push('/deseos')}
           style={styles.compactButton}
@@ -221,7 +258,7 @@ export default function PerfilScreen() {
       <View style={styles.statsRow}>
         {statTiles.map((stat) => (
           <View key={stat.key} style={styles.statTile}>
-            <Text style={styles.statEmoji}>{stat.emoji}</Text>
+            <Icon name={stat.icon} size={22} color={colors.primary} />
             <Text style={styles.statValue}>{stat.value}</Text>
             <Text style={styles.statLabel} numberOfLines={2}>
               {stat.label}
@@ -275,6 +312,21 @@ export default function PerfilScreen() {
 }
 
 const styles = StyleSheet.create({
+  avatarButton: { minWidth: 72, minHeight: 72 },
+  avatarEdit: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    borderWidth: 2,
+    borderColor: colors.surface,
+  },
+  avatarHint: { fontFamily: fonts.body, fontSize: fontSizes.sm, color: colors.inkMuted, textAlign: 'center' },
   screen: {
     flex: 1,
     backgroundColor: colors.sand,

@@ -35,7 +35,7 @@ function EncuentroCard({ encuentro, onPress }: { encuentro: Encuentro; onPress: 
       <View style={styles.cardTop}>
         <Text style={[styles.date, !encuentro.date && styles.dateMissing]} numberOfLines={1}>
           {encuentro.date
-            ? `📅 ${formatFecha(encuentro.date)}`
+            ? `${formatFecha(encuentro.date)}`
             : 'Sin fecha aún — coordínala en el chat'}
         </Text>
         <Badge label={roleBadge.label} tone={roleBadge.tone} />
@@ -48,10 +48,10 @@ function EncuentroCard({ encuentro, onPress }: { encuentro: Encuentro; onPress: 
       </Text>
       <Text style={styles.place} numberOfLines={1}>
         {encuentro.isVirtual
-          ? '💻 Virtual'
+          ? 'Virtual'
           : encuentro.place
-            ? `📍 ${encuentro.place}`
-            : '📍 Punto por definir'}
+            ? `${encuentro.place}`
+            : 'Punto por definir'}
       </Text>
     </Pressable>
   );

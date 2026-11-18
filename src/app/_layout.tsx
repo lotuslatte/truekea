@@ -1,26 +1,33 @@
 import { Baloo2_600SemiBold, Baloo2_700Bold, useFonts } from '@expo-google-fonts/baloo-2';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, ThemeProvider, usePathname, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 
-import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Appearance, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { AuthProvider, useAuth } from '@/features/auth/AuthProvider';
 import { ToastHost } from '@/components/ui/ToastHost';
 import { useIntroState } from '@/features/intro/introState';
-import { usePushNotificationRouting, usePushRegistration } from '@/lib/notifications';
+import { useNotificationsRealtime } from '@/features/notifications/api';
+import { useForegroundNotifications, usePushNotificationRouting, usePushRegistration } from '@/lib/notifications';
 import { queryClient } from '@/lib/queryClient';
+import { initTelemetry, trackScreen } from '@/lib/telemetry';
+import { toast } from '@/lib/toast';
+import { navigationTheme } from '@/theme/navigation';
 import { colorScheme, colors, fonts } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync();
+// No-op unless EXPO_PUBLIC_SENTRY_DSN is set (see .env.example).
+initTelemetry();
 
 // Rutas que un visitante sin cuenta no puede abrir por URL directa.
 // Mirar (feed, detalle de item) es libre; actuar pide cuenta.
 // A visitor may open a public profile: seeing who is behind a listing builds trust before signing up.
-const PROTECTED_TOP = new Set(['oferta', 'chat', 'trueke', 'calificar', 'ajustes', 'encuentros', 'insignias', 'deseos']);
+const PROTECTED_TOP = new Set(['oferta', 'chat', 'trueke', 'calificar', 'ajustes', 'encuentros', 'insignias', 'deseos', 'notificaciones', 'coincidencias', 'impacto']);
 const PROTECTED_TABS = new Set(['ofertas', 'chats', 'perfil', 'publicar']);
 
 function RootNavigator() {
@@ -32,10 +39,17 @@ function RootNavigator() {
 
   usePushRegistration();
   usePushNotificationRouting();
+  useForegroundNotifications();
+  useNotificationsRealtime();
 
   useEffect(() => {
     loadIntro();
   }, [loadIntro]);
+
+  const pathname = usePathname();
+  useEffect(() => {
+    trackScreen(pathname);
+  }, [pathname]);
 
   useEffect(() => {
     if (loading || introSeen === null) return;
@@ -43,12 +57,9 @@ function RootNavigator() {
     const top = parts[0];
     const second = parts[1];
 
-    // 1. Primera apertura: la historia del trueke, antes que todo.
-    if (!introSeen) {
-      if (top !== 'intro') router.replace('/intro');
-      return;
-    }
-    if (top === 'intro') return; // replay manual, no interferir
+    // 1. The feed is the first screen. The welcome sheet opens over it once
+    // (WelcomeSheet); the trueke story is optional and reached from there.
+    if (top === 'intro') return;
 
     // 2. Cuenta creada pero sin perfil: completar el registro.
     if (session && !profile) {
@@ -100,6 +111,9 @@ function RootNavigator() {
       <Stack.Screen name="usuario/[id]" options={{ title: 'Perfil' }} />
       <Stack.Screen name="encuentros" options={{ title: 'Mis encuentros' }} />
       <Stack.Screen name="insignias" options={{ title: 'Mis insignias' }} />
+      <Stack.Screen name="notificaciones" options={{ title: 'Notificaciones' }} />
+      <Stack.Screen name="impacto" options={{ title: 'Mi impacto' }} />
+      <Stack.Screen name="coincidencias" options={{ title: 'Coincidencias' }} />
       <Stack.Screen name="deseos" options={{ title: 'Deseos y guardados' }} />
       <Stack.Screen name="puntos-seguros" options={{ title: 'Puntos seguros' }} />
       <Stack.Screen name="terminos" options={{ title: 'Términos de uso' }} />
@@ -157,16 +171,31 @@ export default function RootLayout() {
     if (fontsLoaded) SplashScreen.hideAsync();
   }, [fontsLoaded]);
 
+  // The palette is resolved once at launch (static StyleSheets). When the
+  // system switches between light and dark while the app is open, the web
+  // reloads to pick it up; on a phone it applies the next time the app opens.
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(colors.sand).catch(() => undefined);
+    const subscription = Appearance.addChangeListener(({ colorScheme: next }) => {
+      if (!next || next === colorScheme) return;
+      if (Platform.OS === 'web') window.location.reload();
+      else toast('Cambió el tema del sistema', 'Truekea lo aplicará la próxima vez que la abras.');
+    });
+    return () => subscription.remove();
+  }, []);
+
   if (!fontsLoaded) return null;
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-        <DesktopFrame>
-          <RootNavigator />
-          <ToastHost />
-        </DesktopFrame>
+        <ThemeProvider value={navigationTheme}>
+          <DesktopFrame>
+            <RootNavigator />
+            <ToastHost />
+          </DesktopFrame>
+        </ThemeProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

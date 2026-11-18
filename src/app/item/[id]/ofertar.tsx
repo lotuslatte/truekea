@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -12,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import { Thumb } from '@/components/Thumb';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -23,17 +23,13 @@ import {
 } from '@/features/offers/api';
 import { QuickPublish } from '@/features/offers/QuickPublish';
 import { notify } from '@/lib/confirm';
-import { publicPhotoUrl, supabase } from '@/lib/supabase';
+import { primeNotifications } from '@/lib/notifications';
+import { track } from '@/lib/telemetry';
+import { supabase } from '@/lib/supabase';
 import { colors, fonts, fontSizes, radius, shadows, spacing } from '@/theme/tokens';
 import type { Profile } from '@/types/database';
 
 type TargetItem = ItemWithPhotos & { owner: Profile };
-
-function firstPhotoUrl(item: ItemWithPhotos): string | null {
-  const sorted = [...item.item_photos].sort((a, b) => a.position - b.position);
-  const photo = sorted[0];
-  return photo ? publicPhotoUrl(photo.storage_path) : null;
-}
 
 export default function OfferModal() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -73,7 +69,9 @@ export default function OfferModal() {
       },
       {
         onSuccess: () => {
-          notify('¡Oferta enviada! 🌱', 'Te avisaremos cuando respondan.');
+          notify('¡Oferta enviada!', 'Te avisaremos cuando respondan.');
+          void primeNotifications('offer');
+          track('offer_sent', { is_donation: isDonation });
           router.back();
         },
         onError: (error) => {
@@ -93,7 +91,6 @@ export default function OfferModal() {
     );
   }
 
-  const targetPhoto = firstPhotoUrl(item);
   const targetIsKnowledge = item.kind === 'knowledge';
 
   return (
@@ -104,27 +101,15 @@ export default function OfferModal() {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         {/* Resumen de lo que quieres */}
         <View style={styles.summary}>
-          {targetPhoto ? (
-            <Image source={{ uri: targetPhoto }} style={styles.summaryThumb} contentFit="cover" />
-          ) : (
-            <View
-              style={[
-                styles.summaryThumb,
-                styles.thumbFallback,
-                targetIsKnowledge && styles.knowledgeFallback,
-              ]}
-            >
-              <Text style={styles.thumbEmoji}>{targetIsKnowledge ? '🎓' : '📷'}</Text>
-            </View>
-          )}
+          <Thumb item={item} style={styles.summaryThumb} />
           <View style={styles.summaryInfo}>
             <Text style={styles.summaryTitle} numberOfLines={2}>
               {item.title}
             </Text>
             {targetIsKnowledge || item.is_donation ? (
               <View style={styles.summaryBadges}>
-                {targetIsKnowledge ? <Badge tone="accent" label="🧠 Saber" /> : null}
-                {item.is_donation ? <Badge tone="donation" label="Regalo 🎁" /> : null}
+                {targetIsKnowledge ? <Badge tone="accent" icon="knowledge" label="Saber" /> : null}
+                {item.is_donation ? <Badge tone="donation" icon="gift" label="Regalo" /> : null}
               </View>
             ) : null}
           </View>
@@ -154,7 +139,6 @@ export default function OfferModal() {
               >
                 {availableItems.map((mine) => {
                   const selected = mine.id === selectedItemId;
-                  const photo = firstPhotoUrl(mine);
                   const isKnowledge = mine.kind === 'knowledge';
                   return (
                     <Pressable
@@ -164,25 +148,13 @@ export default function OfferModal() {
                       onPress={() => setSelectedItemId(selected ? null : mine.id)}
                       style={[styles.pickCard, selected && styles.pickCardSelected]}
                     >
-                      {photo ? (
-                        <Image source={{ uri: photo }} style={styles.pickPhoto} contentFit="cover" />
-                      ) : (
-                        <View
-                          style={[
-                            styles.pickPhoto,
-                            styles.thumbFallback,
-                            isKnowledge && styles.knowledgeFallback,
-                          ]}
-                        >
-                          <Text style={styles.thumbEmoji}>{isKnowledge ? '🎓' : '📷'}</Text>
-                        </View>
-                      )}
+                      <Thumb item={mine} style={styles.pickPhoto} />
                       <Text style={styles.pickTitle} numberOfLines={2}>
                         {mine.title}
                       </Text>
                       {isKnowledge ? (
                         <View style={styles.pickBadge}>
-                          <Badge tone="accent" label="🧠 Saber" />
+                          <Badge tone="accent" icon="knowledge" label="Saber" />
                         </View>
                       ) : null}
                     </Pressable>

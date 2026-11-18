@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { format, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -17,6 +16,9 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 
+import { Thumb } from '@/components/Thumb';
+import { IconText } from '@/components/ui/IconText';
+import { Icon } from '@/components/ui/Icon';
 import { LeafConfetti } from '@/components/LeafConfetti';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -27,6 +29,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { TextField } from '@/components/ui/TextField';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useMyAvailableItems } from '@/features/offers/api';
+import { QuestionsSection } from '@/features/questions/QuestionsSection';
+import { useSavedIds, useToggleSaved } from '@/features/saved/api';
 import { useRequireAuth } from '@/features/auth/useRequireAuth';
 import { useCategories } from '@/features/categories';
 import {
@@ -79,6 +83,8 @@ export default function ItemDetailScreen() {
   const [joinVisible, setJoinVisible] = useState(false);
   const [confettiBurst, setConfettiBurst] = useState(0);
   const membershipQuery = useMyMembership(id ?? '');
+  const saved = useSavedIds();
+  const toggleSaved = useToggleSaved();
 
   const itemQuery = useQuery({
     queryKey: ['item', id],
@@ -159,9 +165,9 @@ export default function ItemDetailScreen() {
           <View style={styles.badgeRow}>
             {item.kind === 'knowledge' ? (
               isCircle ? (
-                <Badge label="⭕ Círculo" tone="accent" />
+                <Badge icon="people" label="Círculo" tone="accent" />
               ) : (
-                <Badge label="🧠 Saber" tone="accent" />
+                <Badge icon="knowledge" label="Saber" tone="accent" />
               )
             ) : null}
             {item.status === 'reserved' ? <Badge label="Reservado" tone="warning" /> : null}
@@ -173,6 +179,37 @@ export default function ItemDetailScreen() {
 
           <View style={styles.titleRow}>
             <Text style={[styles.title, styles.titleFlex]}>{item.title}</Text>
+            {!isMine ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={saved.isSaved(item.id) ? 'Quitar de guardados' : 'Guardar publicación'}
+                accessibilityState={{ selected: saved.isSaved(item.id) }}
+                onPress={() =>
+                  requireAuth(() => {
+                    hapticTap();
+                    const wasSaved = saved.isSaved(item.id);
+                    toggleSaved.mutate(
+                      { itemId: item.id, saved: wasSaved },
+                      {
+                        onSuccess: () => {
+                          if (!wasSaved) notify('Guardado', 'Lo encuentras en Perfil, en «Deseos y guardados».');
+                        },
+                        onError: () => notify('No se pudo guardar', 'Inténtalo de nuevo.'),
+                      },
+                    );
+                  })
+                }
+                hitSlop={8}
+                style={styles.shareButton}
+              >
+                <Icon
+                  name="heart"
+                  weight={saved.isSaved(item.id) ? 'fill' : 'regular'}
+                  size={22}
+                  color={saved.isSaved(item.id) ? colors.festive : colors.inkMuted}
+                />
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Compartir publicación"
@@ -183,18 +220,18 @@ export default function ItemDetailScreen() {
               hitSlop={8}
               style={styles.shareButton}
             >
-              <Ionicons name="share-social-outline" size={20} color={colors.inkMuted} />
+              <Icon name="share" size={20} color={colors.inkMuted} />
             </Pressable>
           </View>
 
-          {item.is_donation ? <Badge label="🎁 Regalo" tone="donation" /> : null}
+          {item.is_donation ? <Badge icon="gift" label="Regalo" tone="donation" /> : null}
           {pickupExpired ? <Badge label="⏰ Venció el recojo" tone="muted" /> : null}
 
           {pickupLabel ? (
             <View style={[styles.pickupBox, pickupUrgent && styles.pickupBoxUrgent]}>
-              <Text style={[styles.pickupTitle, pickupUrgent && styles.pickupTitleUrgent]}>
-                ⏰ Recoger hasta {pickupLabel}
-              </Text>
+              <IconText icon="clock" style={[styles.pickupTitle, pickupUrgent && styles.pickupTitleUrgent]}>
+                Recoger hasta {pickupLabel}
+              </IconText>
               <Text style={styles.pickupSubtext}>
                 Coordina el recojo por chat apenas ofertes — este regalo vuela
               </Text>
@@ -203,7 +240,7 @@ export default function ItemDetailScreen() {
 
           {isMine && (item.status === 'available' || item.status === 'paused') ? (
             <Button
-              title="Editar publicación ✏️"
+              title="Editar publicación"
               variant="secondary"
               onPress={() => router.push(`/item/${item.id}/editar`)}
             />
@@ -223,9 +260,9 @@ export default function ItemDetailScreen() {
           <Text style={styles.description}>{item.description}</Text>
 
           {item.pickup_until ? (
-            <Text style={styles.foodSafetyNote}>
-              🙏 Revisa el estado de la comida al recogerla. Comparte y recibe con confianza.
-            </Text>
+            <IconText icon="info" style={styles.foodSafetyNote}>
+              Revisa el estado de la comida al recogerla. Comparte y recibe con confianza.
+            </IconText>
           ) : null}
 
           {isCircle && isMine ? (
@@ -242,7 +279,7 @@ export default function ItemDetailScreen() {
                 {category.icon} {category.name}
               </Text>
             ) : null}
-            <Text style={styles.metaText}>📍 {item.district}</Text>
+            <IconText icon="location" style={styles.metaText}>{item.district}</IconText>
             <Text style={styles.metaText}>{timeAgo(item.created_at)}</Text>
           </View>
 
@@ -258,8 +295,17 @@ export default function ItemDetailScreen() {
               <Text style={styles.ownerUsername}>@{item.owner.username}</Text>
               <RatingStars value={item.owner.rating_avg ?? 0} count={item.owner.rating_count} size={12} />
             </View>
-            <Text style={styles.chevron}>›</Text>
+            <Icon name="chevron" size={18} color={colors.inkFaint} />
           </Pressable>
+
+          {!isCircle ? (
+            <QuestionsSection
+              itemId={item.id}
+              ownerId={item.owner_id}
+              ownerName={item.owner.display_name}
+              canAsk={item.status === 'available' && !pickupExpired}
+            />
+          ) : null}
 
           {!isMine ? (
             <Pressable onPress={() => requireAuth(() => setReportVisible(true))} hitSlop={8}>
@@ -272,7 +318,7 @@ export default function ItemDetailScreen() {
       {showOfferCta ? (
         <View style={styles.ctaBar}>
           <Button
-            title="Ofrecer trueke 🌱"
+            title="Ofrecer trueke"
             onPress={() => requireAuth(() => router.push(`/item/${item.id}/ofertar`))}
           />
         </View>
@@ -280,7 +326,7 @@ export default function ItemDetailScreen() {
 
       {showJoinCta ? (
         <View style={styles.ctaBar}>
-          <Button title="Pedir mi cupo ⭕" onPress={() => requireAuth(() => setJoinVisible(true))} />
+          <Button title="Pedir mi cupo" onPress={() => requireAuth(() => setJoinVisible(true))} />
         </View>
       ) : null}
 
@@ -305,14 +351,14 @@ function CircleEventBlock({ item }: { item: ItemDetail }) {
 
   return (
     <View style={styles.eventBox}>
-      {item.event_at ? <Text style={styles.eventText}>📅 {formatEventDate(item.event_at)}</Text> : null}
+      {item.event_at ? <IconText icon="calendar" style={styles.eventText}>{formatEventDate(item.event_at)}</IconText> : null}
       {item.capacity != null ? (
-        <Text style={styles.eventText}>
-          🪑 {occupied}/{item.capacity} cupos ocupados
-        </Text>
+        <IconText icon="seats" style={styles.eventText}>
+          {occupied}/{item.capacity} cupos ocupados
+        </IconText>
       ) : null}
       <Text style={styles.eventText}>
-        {item.modality === 'virtual' ? '💻 Virtual' : `📍 ${item.district}`}
+        {item.modality === 'virtual' ? 'Virtual' : `${item.district}`}
       </Text>
     </View>
   );
@@ -355,7 +401,7 @@ function CircleVisitorSection({ item }: { item: ItemDetail }) {
   // accepted o checked_in
   return (
     <View style={styles.circleSection}>
-      <Badge label="¡Tienes cupo! 🎉" tone="success" />
+      <Badge icon="success" label="Tienes cupo" tone="success" />
       {chat ? (
         <Button
           title="Abrir chat del círculo"
@@ -487,8 +533,7 @@ function CircleHostSection({
                 onPress={() => router.push(`/item/${member.offered_item!.id}` as never)}
               >
                 <Text style={styles.memberOfferedItem}>
-                  {member.offered_item.kind === 'knowledge' ? '🎓' : '📦'} Ofrece:{' '}
-                  {member.offered_item.title} →
+                  Ofrece: {member.offered_item.title}
                 </Text>
               </Pressable>
             ) : null}
@@ -529,7 +574,7 @@ function CircleHostSection({
               <Badge label="Aceptado" tone="success" />
               {isEventDayOrLater && item.status !== 'traded' ? (
                 <Button
-                  title="Check-in ✓"
+                  title="Check-in"
                   variant="secondary"
                   style={styles.smallButton}
                   loading={checkin.isPending && checkin.variables === member.id}
@@ -542,7 +587,7 @@ function CircleHostSection({
               ) : null}
             </View>
           ) : null}
-          {member.status === 'checked_in' ? <Badge label="Asistió ✓" tone="primary" /> : null}
+          {member.status === 'checked_in' ? <Badge icon="check" label="Asistió" tone="primary" /> : null}
           {member.status === 'rejected' ? <Badge label="Sin cupo" tone="muted" /> : null}
         </View>
       ))}
@@ -557,7 +602,7 @@ function CircleHostSection({
 
       {canComplete ? (
         <Button
-          title="Completar círculo 🏔️"
+          title="Completar círculo"
           loading={complete.isPending}
           onPress={() =>
             confirmAction({
@@ -569,7 +614,7 @@ function CircleHostSection({
                 complete.mutate(item.id, {
                   onSuccess: () => {
                     onCompleted();
-                    notify('¡Círculo completado! 🏔️', 'Gracias por compartir tu saber.');
+                    notify('¡Círculo completado!', 'Gracias por compartir tu saber.');
                   },
                   onError: (error) => notify('Ups', error.message),
                 }),
@@ -619,16 +664,13 @@ function JoinCircleModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.modalOverlay} onPress={onClose}>
         <Pressable style={styles.modalCard} onPress={() => {}}>
-          <Text style={styles.modalTitle}>Pide tu cupo ⭕</Text>
+          <Text style={styles.modalTitle}>Pide tu cupo</Text>
           {pickable.length > 0 ? (
             <View style={styles.offerPickerSection}>
               <Text style={styles.offerPickerLabel}>Ofrece algo de tu vitrina</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.offerPickerRow}>
                   {pickable.map((mine) => {
-                    const photo = [...(mine.item_photos ?? [])].sort(
-                      (a, b) => a.position - b.position,
-                    )[0];
                     const selected = offeredItemId === mine.id;
                     return (
                       <Pressable
@@ -638,16 +680,7 @@ function JoinCircleModal({
                         onPress={() => setOfferedItemId(selected ? null : mine.id)}
                         style={[styles.offerPickerCard, selected && styles.offerPickerCardSelected]}
                       >
-                        {photo ? (
-                          <Image
-                            source={{ uri: publicPhotoUrl(photo.storage_path) }}
-                            style={styles.offerPickerThumb}
-                          />
-                        ) : (
-                          <View style={[styles.offerPickerThumb, styles.offerPickerThumbFallback]}>
-                            <Text>{mine.kind === 'knowledge' ? '🎓' : '📦'}</Text>
-                          </View>
-                        )}
+                        <Thumb item={mine} style={styles.offerPickerThumb} />
                         <Text style={styles.offerPickerTitle} numberOfLines={2}>
                           {mine.title}
                         </Text>
@@ -848,8 +881,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   shareButton: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: radius.full,
     backgroundColor: colors.surface,
     borderWidth: 1,

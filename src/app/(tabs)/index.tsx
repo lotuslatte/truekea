@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery } from '@tanstack/react-query';
@@ -18,6 +17,9 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
+import { Appear } from '@/components/ui/Appear';
+import { IconText } from '@/components/ui/IconText';
+import { Icon } from '@/components/ui/Icon';
 import { ItemCard } from '@/components/ItemCard';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -33,7 +35,9 @@ import { useAuth } from '@/features/auth/AuthProvider';
 import { useCategories } from '@/features/categories';
 import { useUpcomingCircles } from '@/features/circles/api';
 import { useFeed } from '@/features/feed/api';
-import { getCurrentCoords, type Coords } from '@/lib/location';
+import { WelcomeSheet } from '@/features/intro/WelcomeSheet';
+import { getFlag, setFlag } from '@/lib/flags';
+import { getCurrentCoords, type Coords, type LocationResult } from '@/lib/location';
 import { supabase } from '@/lib/supabase';
 import { useFilters } from '@/stores/filters';
 import { colors, fonts, fontSizes, radius, shadows, spacing } from '@/theme/tokens';
@@ -47,13 +51,13 @@ import type {
 const RADIUS_OPTIONS = [3, 5, 10, 20, 50];
 
 const MODALITY_OPTIONS: { value: KnowledgeModality; label: string }[] = [
-  { value: 'in_person', label: '🤝 Presencial' },
-  { value: 'virtual', label: '💻 Virtual' },
+  { value: 'in_person', label: 'Presencial' },
+  { value: 'virtual', label: 'Virtual' },
 ];
 
 const FORMAT_OPTIONS: { value: KnowledgeFormat; label: string }[] = [
-  { value: 'one_on_one', label: '👤 1 a 1' },
-  { value: 'circle', label: '⭕ Círculos' },
+  { value: 'one_on_one', label: '1 a 1' },
+  { value: 'circle', label: 'Círculos' },
 ];
 
 const CONDITION_OPTIONS: { value: ItemCondition; label: string }[] = [
@@ -64,17 +68,35 @@ const CONDITION_OPTIONS: { value: ItemCondition; label: string }[] = [
 ];
 
 export default function ExplorarScreen() {
-  const [location, setLocation] = useState<{ coords: Coords; isFallback: boolean } | null>(null);
+  const [location, setLocation] = useState<LocationResult | null>(null);
+  const [primerDismissed, setPrimerDismissed] = useState(true);
+  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     let mounted = true;
+    // Never opens the system dialog here: the banner below explains first.
     getCurrentCoords().then((result) => {
       if (mounted) setLocation(result);
+    });
+    getFlag('location_primer_dismissed').then((dismissed) => {
+      if (mounted) setPrimerDismissed(dismissed);
     });
     return () => {
       mounted = false;
     };
   }, []);
+
+  const useMyLocation = async () => {
+    setAsking(true);
+    const result = await getCurrentCoords({ request: true });
+    setLocation(result);
+    setAsking(false);
+  };
+
+  const dismissPrimer = () => {
+    setPrimerDismissed(true);
+    void setFlag('location_primer_dismissed');
+  };
 
   return (
     <View style={styles.screen}>
@@ -83,14 +105,34 @@ export default function ExplorarScreen() {
       {location ? <CirclesCarousel coords={location.coords} /> : null}
       <ImpactBanner />
       <CoachPublicar />
-      {location?.isFallback ? (
-        <View style={styles.fallbackBanner}>
-          <Text style={styles.fallbackText}>
-            Mostrando Lima centro — activa tu ubicación para ver truekes cerca
+      {location?.isFallback && location.canAsk && !primerDismissed ? (
+        <Appear style={styles.primer}>
+          <Text style={styles.primerTitle}>Mira primero lo que está cerca</Text>
+          <Text style={styles.primerText}>
+            Con tu ubicación ordenamos las publicaciones por distancia. Nadie más la ve: en tus publicaciones solo
+            aparece el distrito.
           </Text>
-        </View>
+          <View style={styles.primerActions}>
+            <Button title="Usar mi ubicación" onPress={useMyLocation} loading={asking} style={styles.primerButton} />
+            <Button title="Ahora no" variant="ghost" onPress={dismissPrimer} style={styles.primerButton} />
+          </View>
+        </Appear>
+      ) : location?.isFallback ? (
+        <Pressable
+          style={styles.fallbackBanner}
+          onPress={location.canAsk ? useMyLocation : undefined}
+          disabled={!location.canAsk}
+          accessibilityRole={location.canAsk ? 'button' : 'text'}
+        >
+          <Text style={styles.fallbackText}>
+            {location.canAsk
+              ? 'Mostrando Lima centro. Toca aquí para usar tu ubicación.'
+              : 'Mostrando Lima centro. Activa la ubicación en los ajustes del teléfono para ver lo que está cerca.'}
+          </Text>
+        </Pressable>
       ) : null}
       {location ? <FeedList coords={location.coords} /> : <FeedSkeleton />}
+      <WelcomeSheet />
     </View>
   );
 }
@@ -135,8 +177,8 @@ function SearchRow() {
         onPress={() => setModalVisible(true)}
         style={[styles.filterButton, activeCount > 0 && styles.filterButtonActive]}
       >
-        <Ionicons
-          name="options"
+        <Icon
+          name="filters"
           size={20}
           color={activeCount > 0 ? colors.surface : colors.ink}
         />
@@ -155,9 +197,9 @@ function SearchRow() {
 // el tipo es LA decisión de exploración; categorías y radio viven en Filtros.
 const SEGMENTS = [
   { key: 'todo', label: 'Todo' },
-  { key: 'object', label: '📦 Objetos' },
-  { key: 'knowledge', label: '🧠 Saberes' },
-  { key: 'regalos', label: '🎁 Regalos' },
+  { key: 'object', label: 'Objetos' },
+  { key: 'knowledge', label: 'Saberes' },
+  { key: 'regalos', label: 'Regalos' },
 ] as const;
 
 function TypeSegments() {
@@ -244,7 +286,7 @@ function CirclesCarousel({ coords }: { coords: Coords }) {
 
   return (
     <View style={styles.circlesSection}>
-      <Text style={styles.circlesTitle}>⭕ Círculos esta semana</Text>
+      <Text style={styles.circlesTitle}>Círculos esta semana</Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -261,11 +303,11 @@ function CirclesCarousel({ coords }: { coords: Coords }) {
             <Text style={styles.circleTitle} numberOfLines={2}>
               {circle.title}
             </Text>
-            <Text style={styles.circleDate}>📅 {formatCircleDate(circle.event_at ?? '')}</Text>
+            <IconText icon="calendar" style={styles.circleDate}>{formatCircleDate(circle.event_at ?? '')}</IconText>
             {circle.capacity != null ? (
-              <Text style={styles.circleSeats}>
-                🪑 {circle.accepted_count}/{circle.capacity} cupos
-              </Text>
+              <IconText icon="seats" style={styles.circleSeats}>
+                {circle.accepted_count}/{circle.capacity} cupos
+              </IconText>
             ) : null}
             <View style={styles.circleHost}>
               <Avatar
@@ -305,9 +347,9 @@ function ImpactBanner() {
 
   return (
     <View style={styles.impactBanner}>
-      <Text style={styles.impactText}>
-        🌎 Juntos ya salvamos {impact.items_saved} {objetos} y evitamos {co2} kg de CO₂
-      </Text>
+      <IconText icon="planet" style={styles.impactText}>
+        Juntos ya salvamos {impact.items_saved} {objetos} y evitamos {co2} kg de CO₂
+      </IconText>
     </View>
   );
 }
@@ -372,7 +414,7 @@ function CoachPublicar() {
           onPress={dismiss}
           hitSlop={8}
         >
-          <Text style={styles.coachClose}>✕</Text>
+          <Icon name="close" size={18} color={colors.inkMuted} />
         </Pressable>
       </View>
       <Button
@@ -698,7 +740,7 @@ const styles = StyleSheet.create({
   },
   filterCountText: {
     fontFamily: fonts.bodySemi,
-    fontSize: 11,
+    fontSize: 12,
     color: colors.surface,
   },
   segments: {
@@ -731,6 +773,18 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontFamily: fonts.bodySemi,
   },
+  primer: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    gap: spacing.xs,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primaryFaint,
+  },
+  primerTitle: { fontFamily: fonts.bodySemi, fontSize: fontSizes.md, color: colors.ink },
+  primerText: { fontFamily: fonts.body, fontSize: fontSizes.sm, lineHeight: 20, color: colors.ink },
+  primerActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
+  primerButton: { flex: 1, minHeight: 44, paddingVertical: 10, paddingHorizontal: spacing.md },
   fallbackBanner: {
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,

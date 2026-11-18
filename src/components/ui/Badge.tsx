@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { colors, fonts, fontSizes, radius, spacing } from '@/theme/tokens';
 
 type Tone = 'primary' | 'accent' | 'success' | 'warning' | 'danger' | 'donation' | 'muted' | 'gold';
@@ -15,10 +16,11 @@ const tones: Record<Tone, { bg: string; fg: string }> = {
   gold: { bg: colors.goldFaint, fg: colors.goldInk },
 };
 
-export function Badge({ label, tone = 'primary' }: { label: string; tone?: Tone }) {
+export function Badge({ label, tone = 'primary', icon }: { label: string; tone?: Tone; icon?: IconName }) {
   const { bg, fg } = tones[tone];
   return (
     <View style={[styles.base, { backgroundColor: bg }]}>
+      {icon ? <Icon name={icon} size={14} color={fg} weight="bold" /> : null}
       <Text style={[styles.label, { color: fg }]}>{label}</Text>
     </View>
   );
@@ -30,6 +32,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 3,
     alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   label: {
     fontFamily: fonts.bodySemi,

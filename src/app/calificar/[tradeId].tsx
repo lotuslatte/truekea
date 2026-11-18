@@ -105,7 +105,7 @@ export default function RateTradeScreen() {
       { tradeId: trade.id, rateeId: other.id, stars, comment },
       {
         onSuccess: () => {
-          notify('¡Gracias! 🌱', 'Tu calificación ayuda a la comunidad.');
+          notify('¡Gracias!', 'Tu calificación ayuda a la comunidad.');
           router.back();
         },
         onError: () => {
